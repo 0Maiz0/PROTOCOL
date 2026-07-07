@@ -63,6 +63,7 @@ public class CareerSaveData
 {
     public int saveVersion;
     public int budget;
+    public TeamProtocols protocols;
     public int currentWeek;
     public List<CareerPlayer> roster;
     public List<CareerPlayer> scoutingPool;

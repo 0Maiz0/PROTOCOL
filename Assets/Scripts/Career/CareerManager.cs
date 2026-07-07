@@ -19,6 +19,7 @@ public class CareerManager : MonoBehaviour
     public List<CareerPlayer> roster = new List<CareerPlayer>();
     public List<CareerPlayer> scoutingPool = new List<CareerPlayer>();
     public List<MatchRecord> matchHistory = new List<MatchRecord>();
+    public TeamProtocols protocols = new TeamProtocols();
 
     public EquipmentBonuses TeamEquipment { get; private set; }
 
@@ -106,6 +107,9 @@ public class CareerManager : MonoBehaviour
             foreach (var p in scoutingPool) p.assignedRole = p.preferredRole;
         }
 
+        // Migration: pre-protocols saves deserialize protocols zeroed — reset to defaults
+        protocols = data.saveVersion < 3 || data.protocols == null ? new TeamProtocols() : data.protocols;
+
         // Keep generated enemies/free agents from colliding with saved nicknames
         PlayerGenerator.RegisterExistingNicknames(roster);
         PlayerGenerator.RegisterExistingNicknames(scoutingPool);
@@ -126,6 +130,7 @@ public class CareerManager : MonoBehaviour
         {
             saveVersion = Constants.SAVE_VERSION,
             budget = budget,
+            protocols = protocols,
             currentWeek = currentWeek,
             roster = roster,
             scoutingPool = scoutingPool,

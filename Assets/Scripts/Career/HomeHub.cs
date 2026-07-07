@@ -155,7 +155,7 @@ public class HomeHub : MonoBehaviour
         GUI.Label(new Rect(x, y, w, 22), "Click a role to reassign. Releasing a player returns them to the free agent pool.", dim); y += 26;
 
         float rowH = 112f;
-        float listH = 440f;
+        float listH = 310f;
         Rect view = new Rect(0, 0, w - 60, cm.roster.Count * rowH);
         rosterScroll = GUI.BeginScrollView(new Rect(x, y, w - 20, listH), rosterScroll, view);
         for (int i = 0; i < cm.roster.Count; i++)
@@ -193,6 +193,54 @@ public class HomeHub : MonoBehaviour
             if (sel != cur) cm.SetAssignedRole(p, (Role)sel);
         }
         GUI.EndScrollView();
+
+        DrawProtocols(cm, x, y + listH + 12, w);
+    }
+
+    // ===================== TEAM PROTOCOLS =====================
+
+    private bool protocolsDirty;
+
+    /// <summary>
+    /// The coach's real job: HOW the team plays without you. The IGL calls
+    /// every round from these — in-match you only get 3 tactical timeouts.
+    /// </summary>
+    private void DrawProtocols(CareerManager cm, float x, float y, float w)
+    {
+        var p = cm.protocols;
+        GUI.Label(new Rect(x, y, w, 22), "TEAM PROTOCOLS — how they play without you", h2); y += 28;
+
+        GUI.Label(new Rect(x, y, 220, 20), $"Aggression: {p.aggression}", text);
+        int aggr = Mathf.RoundToInt(GUI.HorizontalSlider(new Rect(x + 230, y + 6, 240, 18), p.aggression, 0f, 100f));
+        GUI.Label(new Rect(x + 485, y, 220, 20),
+            aggr < 35 ? "slow, map control" : aggr > 65 ? "fast, rush-heavy" : "balanced", dim);
+        y += 26;
+
+        GUI.Label(new Rect(x, y, 220, 20), $"Economy discipline: {p.economyDiscipline}", text);
+        int disc = Mathf.RoundToInt(GUI.HorizontalSlider(new Rect(x + 230, y + 6, 240, 18), p.economyDiscipline, 0f, 100f));
+        GUI.Label(new Rect(x + 485, y, 220, 20),
+            disc < 40 ? "force-happy" : disc >= 70 ? "strict saves" : "standard", dim);
+        y += 26;
+
+        bool lurk = GUI.Toggle(new Rect(x, y, 320, 22), p.preferLurker, "  Default lurker on T-side");
+
+        if (aggr != p.aggression || disc != p.economyDiscipline || lurk != p.preferLurker)
+        {
+            p.aggression = aggr;
+            p.economyDiscipline = disc;
+            p.preferLurker = lurk;
+            protocolsDirty = true;
+        }
+    }
+
+    private void Update()
+    {
+        // Save protocols when the drag is released, not every slider frame
+        if (protocolsDirty && !Input.GetMouseButton(0))
+        {
+            protocolsDirty = false;
+            CareerManager.Instance?.Save();
+        }
     }
 
     // ===================== SCOUTING =====================

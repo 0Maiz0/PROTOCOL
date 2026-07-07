@@ -45,10 +45,17 @@ public class RoundManager : MonoBehaviour
 	private List<BotController> defenderBots = new List<BotController>();
 	private bool roundActive = false;
 	private bool coachCallMade = false;
-	private bool midRoundCallMade = false;
 	private StrategyData selectedStrategy = null;
 	private BuyType selectedBuy = BuyType.Eco;
 	private string lastPlayerStrategy = "";
+
+	// The coach's only in-match lever — tactical timeouts, like real CS
+	private int timeoutsLeft = Constants.TIMEOUTS_PER_MATCH;
+	private bool timeoutPending = false;
+	private TeamProtocols fallbackProtocols = new TeamProtocols();
+
+	private TeamProtocols GetProtocols() =>
+		CareerManager.Instance != null ? CareerManager.Instance.protocols : fallbackProtocols;
 
 	private void Start()
 	{
@@ -106,6 +113,12 @@ public class RoundManager : MonoBehaviour
 
 	private void Update()
 	{
+		if (Input.GetKeyDown(KeyCode.T) && timeoutsLeft > 0 && !timeoutPending)
+		{
+			timeoutPending = true;
+			Debug.Log("COACH: tactical timeout requested — takes effect next freeze");
+		}
+
 		if (!roundActive || currentPhase != RoundPhase.Live) return;
 		roundTimer -= Time.deltaTime;
 		if (bombManager != null) { bombManager.TryAutoPlant(attackerBots); bombManager.TryAutoDefuse(defenderBots); }
@@ -168,26 +181,47 @@ public class RoundManager : MonoBehaviour
 		if (commsManager != null) commsManager.ResetForRound();
 		CommsFeed.Clear();
 		if (bombManager != null) bombManager.AssignCarrier(attackerBots);
-		// AI side commits its buy now; the coach picks the player side's tier in the panel
-		economy.PrepareBuyPhase(State.playerTeamSide);
+		// THE TEAM PLAYS, THE COACH WATCHES: the IGL calls buy + strategy.
+		// A tactical timeout hands this one round back to the coach.
+		bool timeoutRound = timeoutPending && timeoutsLeft > 0;
+		if (timeoutRound)
+		{
+			timeoutPending = false;
+			timeoutsLeft--;
+			CommsFeed.PostSystem($"TACTICAL TIMEOUT — coach takes over ({timeoutsLeft} left)");
+		}
+
+		economy.DecideBuys(State.playerTeamSide, GetProtocols().economyDiscipline, !timeoutRound);
 
 		if (observerCamera != null) observerCamera.SetOverviewMode();
 
-		coachCallMade = false;
+		var playerRoster = (State.playerTeamSide == TeamSide.Attacker) ? attackerBots : defenderBots;
+		if (iglBrain != null) iglBrain.SetTeam(playerRoster, State.playerTeamSide);
+
 		selectedStrategy = null;
-		selectedBuy = economy.GetEconomy(State.playerTeamSide).recommendedBuy;
-		if (coachPanel != null)
+		if (timeoutRound && coachPanel != null)
+		{
+			coachCallMade = false;
+			selectedBuy = economy.GetEconomy(State.playerTeamSide).recommendedBuy;
 			coachPanel.ShowPanel(State.playerTeamSide, economy.GetEconomy(State.playerTeamSide),
 				(strat, buy) => { selectedStrategy = strat; selectedBuy = buy; coachCallMade = true; });
-		else coachCallMade = true;
 
-		float elapsed = 0f;
-		while (!coachCallMade || elapsed < 2f)
-		{ elapsed += Time.deltaTime; yield return null; if (elapsed > 15f) { coachCallMade = true; break; } }
-		if (coachPanel != null) coachPanel.HidePanel();
+			float elapsed = 0f;
+			while (!coachCallMade || elapsed < 2f)
+			{ elapsed += Time.deltaTime; yield return null; if (elapsed > 30f) { coachCallMade = true; break; } }
+			coachPanel.HidePanel();
+			economy.ApplyPlayerBuy(State.playerTeamSide, selectedBuy);
+		}
+		else
+		{
+			// The IGL calls the round
+			if (strategyExecutor != null) strategyExecutor.SetLurkerEnabled(GetProtocols().preferLurker);
+			if (iglBrain != null)
+				selectedStrategy = iglBrain.PickOpeningStrategy(State.playerTeamSide, GetProtocols(),
+					coachPanel, economy.GetEconomy(State.playerTeamSide).currentBuyType);
+			yield return new WaitForSeconds(Constants.AUTO_FREEZE_TIME);
+		}
 
-		// Buys resolve after the coach call: tier per team → per-player weapons from the pool
-		economy.ApplyPlayerBuy(State.playerTeamSide, selectedBuy);
 		AssignBuyTypes();
 		if (grenadeManager != null)
 			grenadeManager.AllocateUtility(economy.attackerEconomy.currentBuyType, economy.defenderEconomy.currentBuyType);
@@ -210,10 +244,6 @@ public class RoundManager : MonoBehaviour
 			if (grenadeManager != null) grenadeManager.OnStrategyExecuted(selectedStrategy, State.playerTeamSide);
 		}
 
-		if (iglBrain != null)
-			iglBrain.SetTeam((State.playerTeamSide == TeamSide.Attacker) ? attackerBots : defenderBots,
-				State.playerTeamSide);
-
 		StrategyData aiStrategy = null;
 		if (aiCoach != null)
 		{
@@ -226,29 +256,11 @@ public class RoundManager : MonoBehaviour
 
 		UpdateAliveCounts();
 
-		// ============ MID-ROUND ============
-		float midWait = Constants.MID_ROUND_TRIGGER_TIME;
-		while (midWait > 0f && roundActive) { midWait -= Time.deltaTime; yield return null; }
-		if (!roundActive) goto PostRound;
-
-		midRoundCallMade = false;
-		UpdateAliveCounts();
-		bool bombPlanted = bombManager != null && bombManager.IsPlanted;
-
-		if (midRoundPanel != null && !bombPlanted && !PlayerAlreadyExecuting())
-		{
-			var playerBots = (State.playerTeamSide == TeamSide.Attacker) ? attackerBots : defenderBots;
-			int friendly = (State.playerTeamSide == TeamSide.Attacker) ? attackersAlive : defendersAlive;
-			int enemy = (State.playerTeamSide == TeamSide.Attacker) ? defendersAlive : attackersAlive;
-			midRoundPanel.ShowPanel(State.playerTeamSide, playerBots, friendly, enemy, false, "", (call) => { midRoundCallMade = true; });
-			float mw = 0f;
-			while (!midRoundCallMade && roundActive && mw < 10f) { mw += Time.deltaTime; yield return null; }
-			if (midRoundPanel != null) midRoundPanel.HidePanel();
-		}
-
+		// ============ LIVE UNTIL RESOLVED ============
+		// Mid-round decisions belong to the IGL now — the coach watches
+		// (and spends a timeout if the plan needs to change next round)
 		yield return new WaitUntil(() => !roundActive);
 
-	PostRound:
 		currentPhase = RoundPhase.PostRound;
 		FreezeAllBots();
 		if (observerCamera != null) observerCamera.SetOverviewMode();
@@ -321,27 +333,6 @@ public class RoundManager : MonoBehaviour
 	}
 
 	// ===================== HALFTIME =====================
-
-	/// <summary>
-	/// Most of the team is already standing on a site — asking "commit or rotate?"
-	/// mid-execute is noise, skip the panel.
-	/// </summary>
-	private bool PlayerAlreadyExecuting()
-	{
-		if (State.playerTeamSide != TeamSide.Attacker) return false; // CT calls stay relevant
-		GameObject a = GameObject.Find("WP_NodeA"), b = GameObject.Find("WP_NodeB");
-		int alive = 0, onSite = 0;
-		foreach (var bot in attackerBots)
-		{
-			if (bot?.Profile == null || !bot.Profile.IsAlive) continue;
-			alive++;
-			Vector3 p = bot.transform.position;
-			if ((a != null && Vector3.Distance(p, a.transform.position) < Constants.SITE_EXECUTE_RADIUS) ||
-			    (b != null && Vector3.Distance(p, b.transform.position) < Constants.SITE_EXECUTE_RADIUS))
-				onSite++;
-		}
-		return alive > 0 && onSite >= Mathf.Max(2, alive - 1);
-	}
 
 	private void SwapSidesAtHalftime()
 	{
@@ -419,6 +410,25 @@ public class RoundManager : MonoBehaviour
 			};
 			GUI.Label(new Rect(15, 90, 500, 25), bt, s);
 		}
+		// Tactical timeout — the coach's only in-match lever
+		if (!State.isMatchOver)
+		{
+			if (timeoutPending)
+			{
+				GUIStyle ts = new GUIStyle(GUI.skin.label) { fontSize = 15, fontStyle = FontStyle.Bold };
+				ts.normal.textColor = Color.yellow;
+				GUI.Label(new Rect(Screen.width - 240, 12, 230, 30), "TIMEOUT next freeze...", ts);
+			}
+			else
+			{
+				GUIStyle tb = new GUIStyle(GUI.skin.button) { fontSize = 14, fontStyle = FontStyle.Bold };
+				GUI.enabled = timeoutsLeft > 0;
+				if (GUI.Button(new Rect(Screen.width - 240, 10, 230, 34), $"TIMEOUT [T] — {timeoutsLeft} left", tb))
+					timeoutPending = true;
+				GUI.enabled = true;
+			}
+		}
+
 		if (State.isMatchOver)
 		{
 			s.fontSize = 36; s.fontStyle = FontStyle.Bold; s.alignment = TextAnchor.MiddleCenter; s.normal.textColor = Color.yellow;

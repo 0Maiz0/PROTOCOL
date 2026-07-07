@@ -56,6 +56,10 @@ public class CoachPanel : MonoBehaviour
         showingPanel = false;
     }
 
+    /// <summary>The team's playbook — the IGL picks from the same strategy pool.</summary>
+    public StrategyData[] GetStrategies(TeamSide side)
+        => side == TeamSide.Attacker ? tStrategies : ctStrategies;
+
     public void SetLurker(bool enabled)
     {
         lurkerEnabled = enabled;
@@ -85,7 +89,7 @@ public class CoachPanel : MonoBehaviour
         titleStyle.normal.textColor = Color.white;
 
         string sideLabel = currentSide == TeamSide.Attacker ? "T-SIDE" : "CT-SIDE";
-        GUI.Label(new Rect(panelX, panelY + 5, panelWidth, 30), $"SELECT BUY + STRATEGY ({sideLabel})", titleStyle);
+        GUI.Label(new Rect(panelX, panelY + 5, panelWidth, 30), $"TIMEOUT — SET THE ROUND ({sideLabel})", titleStyle);
 
         GUIStyle descStyle = new GUIStyle(GUI.skin.label);
         descStyle.fontSize = 11;

@@ -339,6 +339,7 @@ public class GrenadeManager : MonoBehaviour
     {
         if (thrower == null || !thrower.Profile.IsAlive || target == Vector3.zero)
             yield break;
+        if (!SafeForTeammates(type, target, thrower)) yield break; // never nade your own guys
         if (!TrySpendNade(thrower.Side)) yield break; // shared team inventory
 
         TeamSide throwerSide = thrower.Side; // capture — thrower can die mid-flight
@@ -392,6 +393,31 @@ public class GrenadeManager : MonoBehaviour
         // Destroy projectile, spawn effect at landing position
         Object.Destroy(projectile);
         SpawnEffect(type, target, throwerSide);
+    }
+
+    /// <summary>
+    /// Don't throw onto alive teammates: mollies burn them, flashes blind them,
+    /// smokes ruin their angle. The thrower itself is exempt (panic self-smoke).
+    /// </summary>
+    private bool SafeForTeammates(GrenadeType type, Vector3 target, BotController thrower)
+    {
+        var mates = thrower.Side == TeamSide.Attacker ? attackerBots : defenderBots;
+        if (mates == null) return true;
+
+        float radius = type switch
+        {
+            GrenadeType.Smoke => smokeRadius,
+            GrenadeType.Flash => flashRadius,
+            _ => molotovRadius
+        };
+        float safe = type == GrenadeType.Molotov ? radius + 1.5f : radius * 0.75f;
+
+        foreach (var m in mates)
+        {
+            if (m == null || m == thrower || m.Profile == null || !m.Profile.IsAlive) continue;
+            if (Vector3.Distance(m.transform.position, target) < safe) return false;
+        }
+        return true;
     }
 
     // ===================== SPAWN EFFECT AT LANDING =====================

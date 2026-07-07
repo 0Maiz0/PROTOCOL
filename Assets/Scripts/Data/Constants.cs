@@ -94,6 +94,10 @@ public static class Constants
     public const float SWEEP_ARC_LOW_GS = 80f;
     public const float SWEEP_ARC_HIGH_GS = 30f;
 
+    // Coach control rework: the team plays, the coach watches
+    public const int TIMEOUTS_PER_MATCH = 3;
+    public const float AUTO_FREEZE_TIME = 3f; // freeze length when the IGL calls the round
+
     // Playtest #4: bomb carrier, reload retreat, one-taps, panic utility
     public const float BOMB_PICKUP_RANGE = 2.5f;
     public const float RELOAD_RETREAT_RANGE = 14f;  // enemy this close while reloading → back off
@@ -138,5 +142,5 @@ public static class Constants
 
     // Save
     public const string SAVE_FILE_NAME = "career_save.json";
-    public const int SAVE_VERSION = 2;
+    public const int SAVE_VERSION = 3;
 }

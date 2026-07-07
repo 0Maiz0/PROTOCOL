@@ -69,16 +69,19 @@ public class TeamEconomy
     public bool CanAffordTier(BuyType t) => credits >= EstimateTierCost(t);
 
     /// <summary>
-    /// Recommend a buy tier — used directly by the AI, shown as default to the coach.
+    /// The IGL's buy call. Discipline comes from team protocols:
+    /// strict teams save properly, loose cannons force whenever they can.
     /// </summary>
-    public BuyType ChooseBuy(int enemyScore)
+    public BuyType ChooseBuy(int enemyScore, int discipline = 50)
     {
         if (isFirstRound) return BuyType.Eco; // pistol round
 
         if (CanAffordTier(BuyType.Full)) return BuyType.Full;
 
         bool mustWin = enemyScore >= Constants.ROUNDS_TO_WIN - 1; // match point — no point saving
-        bool shouldForce = mustWin || consecutiveEcos >= 1 || wonLastRound;
+        int ecoStreakNeeded = discipline >= 70 ? 2 : 1;
+        bool shouldForce = mustWin || consecutiveEcos >= ecoStreakNeeded || wonLastRound;
+        if (discipline < 40) shouldForce |= CanAffordTier(BuyType.Force); // force-happy squad
         if (shouldForce && CanAffordTier(BuyType.Force)) return BuyType.Force;
         if (shouldForce && CanAffordTier(BuyType.Half)) return BuyType.Half;
 
@@ -185,10 +188,12 @@ public class MatchEconomy : MonoBehaviour
     }
 
     /// <summary>
-    /// Freeze-time start: the AI side commits to its buy; the player side gets a
-    /// recommendation for the coach panel. Loadouts are bought after the coach call.
+    /// Freeze-time buys — both IGLs call their own economy. The player side
+    /// follows team protocols (discipline). On a tactical timeout the coach
+    /// overrides afterwards via ApplyPlayerBuy (playerAuto = false skips SetBuy
+    /// so the eco-streak isn't double counted).
     /// </summary>
-    public void PrepareBuyPhase(TeamSide playerSide)
+    public void DecideBuys(TeamSide playerSide, int playerDiscipline, bool playerAuto)
     {
         TeamEconomy playerEcon = GetEconomy(playerSide);
         TeamEconomy aiEcon = playerSide == TeamSide.Attacker ? defenderEconomy : attackerEconomy;
@@ -196,7 +201,13 @@ public class MatchEconomy : MonoBehaviour
         int aiScore = playerSide == TeamSide.Attacker ? defenderScore : attackerScore;
 
         aiEcon.SetBuy(aiEcon.ChooseBuy(playerScore));
-        playerEcon.recommendedBuy = playerEcon.ChooseBuy(aiScore);
+        playerEcon.recommendedBuy = playerEcon.ChooseBuy(aiScore, playerDiscipline);
+        if (playerAuto)
+        {
+            playerEcon.SetBuy(playerEcon.recommendedBuy);
+            Debug.Log($"BUY | T: {attackerEconomy.currentBuyType} (${attackerEconomy.credits}) " +
+                      $"| CT: {defenderEconomy.currentBuyType} (${defenderEconomy.credits})");
+        }
     }
 
     /// <summary>

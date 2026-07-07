@@ -210,7 +210,8 @@ public class RoundManager : MonoBehaviour
 		if (observerCamera != null) observerCamera.SetOverviewMode();
 
 		var playerRoster = (State.playerTeamSide == TeamSide.Attacker) ? attackerBots : defenderBots;
-		if (iglBrain != null) iglBrain.SetTeam(playerRoster, State.playerTeamSide);
+		var enemyRoster = (State.playerTeamSide == TeamSide.Attacker) ? defenderBots : attackerBots;
+		if (iglBrain != null) iglBrain.SetTeam(playerRoster, enemyRoster, State.playerTeamSide);
 
 		selectedStrategy = null;
 		if (timeoutRound && coachPanel != null)
@@ -230,9 +231,11 @@ public class RoundManager : MonoBehaviour
 		{
 			// The IGL calls the round
 			if (strategyExecutor != null) strategyExecutor.SetLurkerEnabled(GetProtocols().preferLurker);
+			TeamSide enemySide = State.playerTeamSide == TeamSide.Attacker ? TeamSide.Defender : TeamSide.Attacker;
 			if (iglBrain != null)
 				selectedStrategy = iglBrain.PickOpeningStrategy(State.playerTeamSide, GetProtocols(),
-					coachPanel, economy.GetEconomy(State.playerTeamSide).currentBuyType);
+					coachPanel, economy.GetEconomy(State.playerTeamSide).currentBuyType,
+					economy.GetEconomy(enemySide).currentBuyType);
 			yield return new WaitForSeconds(Constants.AUTO_FREEZE_TIME);
 		}
 
@@ -290,6 +293,8 @@ public class RoundManager : MonoBehaviour
 			TeamSide aiSide = (State.playerTeamSide == TeamSide.Attacker) ? TeamSide.Defender : TeamSide.Attacker;
 			aiCoach.OnRoundResult(winner, aiSide, lastPlayerStrategy);
 		}
+		if (iglBrain != null)
+			iglBrain.OnRoundResult(winner == State.playerTeamSide, selectedStrategy);
 
 		Debug.Log($"ROUND WINNER: {winner} | {State.attackerScore}-{State.defenderScore}");
 		ResetRoundKills();
@@ -331,19 +336,34 @@ public class RoundManager : MonoBehaviour
 
 	private void AssignBuyTypes()
 	{
-		AssignTeamLoadouts(attackerBots, economy.attackerEconomy);
-		AssignTeamLoadouts(defenderBots, economy.defenderEconomy);
+		AssignTeamLoadouts(attackerBots, economy.attackerEconomy, TeamSide.Attacker);
+		AssignTeamLoadouts(defenderBots, economy.defenderEconomy, TeamSide.Defender);
 	}
 
-	private void AssignTeamLoadouts(List<BotController> bots, TeamEconomy econ)
+	private void AssignTeamLoadouts(List<BotController> bots, TeamEconomy econ, TeamSide side)
 	{
 		// AWPer buys first so the pool can afford the big green
 		foreach (var b in bots)
 			if (b?.Profile != null && b.Profile.AssignedRole == Role.AWPer)
-				b.SetLoadout(econ.BuyWeaponFor(Role.AWPer), econ.currentBuyType);
+				b.SetLoadout(Localize(econ.BuyWeaponFor(Role.AWPer), side), econ.currentBuyType);
 		foreach (var b in bots)
 			if (b?.Profile != null && b.Profile.AssignedRole != Role.AWPer)
-				b.SetLoadout(econ.BuyWeaponFor(b.Profile.AssignedRole), econ.currentBuyType);
+				b.SetLoadout(Localize(econ.BuyWeaponFor(b.Profile.AssignedRole), side), econ.currentBuyType);
+	}
+
+	/// <summary>Side-correct display names — CTs don't run Galils.</summary>
+	private static WeaponData.WeaponStats Localize(WeaponData.WeaponStats w, TeamSide side)
+	{
+		bool t = side == TeamSide.Attacker;
+		w.displayName = w.weaponName switch
+		{
+			"AK-47/M4" => t ? "AK-47" : "M4A4",
+			"Galil/Famas" => t ? "Galil AR" : "FAMAS",
+			"SMG" => t ? "MAC-10" : "MP9",
+			"Pistol" => t ? "Glock-18" : "USP-S",
+			_ => w.weaponName
+		};
+		return w;
 	}
 
 	// ===================== HALFTIME =====================
@@ -351,7 +371,8 @@ public class RoundManager : MonoBehaviour
 	private void SwapSidesAtHalftime()
 	{
 		(attackerBots, defenderBots) = (defenderBots, attackerBots);
-		(attackerSpawns, defenderSpawns) = (defenderSpawns, attackerSpawns);
+		// Spawns DON'T swap: attackers always spawn at the T side of the map.
+		// Swapping them made teams keep their physical positions and only change color.
 		(attackerEquipment, defenderEquipment) = (defenderEquipment, attackerEquipment);
 		foreach (var b in attackerBots) { b.SetSide(TeamSide.Attacker); b.SetColor(Color.red); }
 		foreach (var b in defenderBots) { b.SetSide(TeamSide.Defender); b.SetColor(Color.blue); }

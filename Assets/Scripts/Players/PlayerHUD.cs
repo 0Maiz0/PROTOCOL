@@ -97,7 +97,9 @@ public class PlayerHUD : MonoBehaviour
         float hp = bot.Profile.HP;
         int ammo = bot.Profile.CurrentAmmo;
         int maxAmmo = bot.Profile.CurrentWeapon.magazineSize;
-        string weapon = bot.Profile.CurrentWeapon.weaponName;
+        string weapon = string.IsNullOrEmpty(bot.Profile.CurrentWeapon.displayName)
+            ? bot.Profile.CurrentWeapon.weaponName
+            : bot.Profile.CurrentWeapon.displayName;
         string nick = bot.Profile.Data.nickname;
         bool reloading = bot.Profile.IsReloading;
 

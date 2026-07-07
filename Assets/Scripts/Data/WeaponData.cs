@@ -10,7 +10,8 @@ public static class WeaponData
 {
     public struct WeaponStats
     {
-        public string weaponName;
+        public string weaponName;      // class id — gameplay checks key off this ("AWP", "Pistol", "SMG")
+        public string displayName;     // side-correct label set at loadout time (empty = weaponName)
         public float range;           // Max effective engagement range (units)
         public float damage;           // Base damage per hit
         public float fireInterval;     // Seconds between shots
@@ -88,7 +89,7 @@ public static class WeaponData
         fireInterval = 1.6f, // bolt cycle + re-scope — no boom-boom double taps
         magazineSize = 5,
         reloadTime = 3.5f,
-        baseAccuracy = 0.90f,
+        baseAccuracy = 0.85f, // playtest #6: re-peek nerf
         sprayGrowth = 0f,      // No spray — single shots
         maxSpray = 0.90f,
         rangeFalloff = 0.95f    // Almost no falloff — long range beast

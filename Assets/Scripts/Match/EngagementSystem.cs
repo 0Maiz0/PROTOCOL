@@ -424,6 +424,20 @@ public class EngagementSystem : MonoBehaviour
         currentTarget = null;
         myBot.Profile.SprayCounter = 0f;
         if (coverBehavior != null) coverBehavior.StopCombatCover();
+
+        // AWP discipline: fall back off the angle after a pick — holding the
+        // same line forever made re-peeking the sniper hopeless
+        if (myBot.Profile.CurrentWeapon.weaponName == "AWP" &&
+            myBot.Agent != null && myBot.Agent.isOnNavMesh)
+        {
+            myStateMachine.TransitionTo(BotState.Moving); // transition FIRST — it may resume waypoints
+            Vector3 back = -transform.forward * 5f + transform.right * (Random.value < 0.5f ? -3f : 3f);
+            myBot.Agent.isStopped = false;
+            myBot.Agent.SetDestination(transform.position + back);
+            losCheckTimer = 0.4f;
+            return;
+        }
+
         myStateMachine.TransitionTo(BotState.Moving);
         losCheckTimer = 0.1f;
     }
@@ -439,6 +453,17 @@ public class EngagementSystem : MonoBehaviour
         reloadRetreatTimer -= Time.deltaTime;
         if (reloadRetreatTimer > 0f) return;
         reloadRetreatTimer = 0.5f;
+
+        // Almost loaded — stand your ground (a full-buy rifler fleeing an
+        // eco pistol for the last half second looked ridiculous)
+        if (myBot.Profile.ReloadTimer < 0.8f) return;
+
+        // A teammate nearby has it covered — no panic sprint
+        foreach (var s in allSystems)
+            if (s != this && s.myBot != null && s.myBot.Profile != null &&
+                s.myBot.Side == myBot.Side && s.myBot.Profile.IsAlive &&
+                Vector3.Distance(transform.position, s.transform.position) < 8f)
+                return;
 
         BotController threat = null;
         float best = float.MaxValue;

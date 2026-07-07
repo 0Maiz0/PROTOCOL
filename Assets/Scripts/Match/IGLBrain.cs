@@ -3,45 +3,57 @@ using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
-/// IGL BRAIN v2 — the player's team CALLS ITS OWN GAME.
+/// IGL BRAIN v3 — the player's team calls its own game, with a PERSONALITY.
 ///
-/// The coach builds the team, sets protocols and watches. The IGL:
-///  - picks the opening strategy from the playbook (protocols + own leadership)
-///  - times the commit on executes (utility first, then the push)
-///  - rotates the defense on info with an anchor left behind
-/// All of it voiced in the comms feed.
-///
-/// Leadership drives everything: read thresholds, commit timing, fake usage.
-/// A dead IGL makes no calls — the team runs on a sloppy autopilot.
-/// The coach's only override is a tactical timeout (3 per match).
+/// Reads: the coach's protocols + own Leadership (sharpness of reads) +
+/// own Ego (voice flavor) + the enemy's economy + which sites keep failing.
+/// Calls: opening strategy, execute timing, defensive rotations with an
+/// anchor, plant pushes on man advantage / burning clock, and saves when
+/// the round is lost. A dead IGL makes no calls — sloppy autopilot only.
+/// The coach's only override remains the tactical timeout.
 /// </summary>
 public class IGLBrain : MonoBehaviour
 {
     private List<BotController> myBots;
+    private List<BotController> enemyBots;
     private TeamSide mySide;
     private BotController igl;
 
     private StrategyExecutor strategyExecutor;
     private GrenadeManager grenadeManager;
+    private BombManager bombManager;
 
     private float evalTimer;
     private float rotateCooldown;
     private Coroutine commitCo;
 
+    private float roundStartTime;
+    private float lastPlantPushTime;
+    private bool saveCalled;
+
+    // Adaptation memory: zones that keep losing us rounds get called off
+    private readonly Dictionary<StrategyZone, int> zoneFails = new Dictionary<StrategyZone, int>();
+    private StrategyData lastPick;
+
     private void Start()
     {
         strategyExecutor = FindObjectOfType<StrategyExecutor>();
         grenadeManager = FindObjectOfType<GrenadeManager>();
+        bombManager = FindObjectOfType<BombManager>();
     }
 
     /// <summary>Called by RoundManager at freeze time, before the opening pick.</summary>
-    public void SetTeam(List<BotController> bots, TeamSide side)
+    public void SetTeam(List<BotController> bots, List<BotController> enemies, TeamSide side)
     {
         myBots = bots;
+        enemyBots = enemies;
         mySide = side;
         igl = null;
-        rotateCooldown = 6f; // settle before reacting to info
+        rotateCooldown = 6f;
         evalTimer = Constants.CT_EVAL_INTERVAL;
+        roundStartTime = Time.time;
+        lastPlantPushTime = -100f;
+        saveCalled = false;
         if (commitCo != null) { StopCoroutine(commitCo); commitCo = null; }
         if (bots == null) return;
         foreach (var b in bots)
@@ -51,7 +63,28 @@ public class IGLBrain : MonoBehaviour
                 if (b?.Profile != null) { igl = b; break; }
     }
 
+    /// <summary>RoundManager reports results — the IGL learns what isn't working.</summary>
+    public void OnRoundResult(bool won, StrategyData played)
+    {
+        var strat = played != null ? played : lastPick;
+        if (strat == null) return;
+        zoneFails[strat.zone] = won ? 0 : GetFails(strat.zone) + 1;
+    }
+
+    private int GetFails(StrategyZone z) => zoneFails.TryGetValue(z, out int f) ? f : 0;
+
     private float Leadership => igl?.Profile != null ? igl.Profile.Data.leadership / 100f : 0.3f;
+
+    // ===================== PERSONALITY VOICE =====================
+
+    /// <summary>Big ego talks big, high leadership stays composed, the rest just call it.</summary>
+    private string Flavor(string plain, string cocky, string composed)
+    {
+        if (igl?.Profile == null) return plain;
+        if (igl.Profile.Data.ego >= 65) return cocky;
+        if (igl.Profile.Data.leadership >= 65) return composed;
+        return plain;
+    }
 
     private void Voice(string message)
     {
@@ -61,17 +94,15 @@ public class IGLBrain : MonoBehaviour
 
     // ===================== OPENING CALL =====================
 
-    /// <summary>
-    /// The IGL picks the round's strategy, weighted by team protocols
-    /// (aggression) and personality (good IGLs sell fakes).
-    /// </summary>
-    public StrategyData PickOpeningStrategy(TeamSide side, TeamProtocols protocols, CoachPanel playbook, BuyType buy)
+    public StrategyData PickOpeningStrategy(TeamSide side, TeamProtocols protocols, CoachPanel playbook,
+        BuyType buy, BuyType enemyBuy)
     {
         StrategyData[] pool = playbook != null ? playbook.GetStrategies(side) : null;
         if (pool == null || pool.Length == 0) return null;
 
         float aggr = protocols != null ? protocols.aggression / 100f : 0.5f;
         float lead = Leadership;
+        bool enemyBroke = enemyBuy == BuyType.Eco || enemyBuy == BuyType.Half;
 
         float total = 0f;
         float[] weights = new float[pool.Length];
@@ -86,6 +117,14 @@ public class IGLBrain : MonoBehaviour
                 StrategyType.Control => 1.2f - aggr * 0.6f,
                 _ => 1.0f - aggr * 0.3f                   // Default
             };
+
+            // Anti-eco read: they're broke — hit fast, don't feed them picks
+            if (enemyBroke && (pool[i].type == StrategyType.Rush || pool[i].type == StrategyType.Execute))
+                w *= 1.4f;
+
+            // This zone keeps failing — a sharp IGL stops slamming into the wall
+            w /= 1f + GetFails(pool[i].zone) * 0.5f * (0.5f + lead);
+
             weights[i] = Mathf.Max(0.05f, w);
             total += weights[i];
         }
@@ -98,11 +137,35 @@ public class IGLBrain : MonoBehaviour
             cum += weights[i];
             if (roll <= cum && pool[i] != null) { picked = pool[i]; break; }
         }
+        lastPick = picked;
 
         if (picked != null)
-            Voice($"{BuyLabel(buy)} — {picked.strategyName.Trim()}, listen up");
+        {
+            string call = $"{BuyLabel(buy)} — {picked.strategyName.Trim()}";
+            Voice(Flavor($"{call}, listen up",
+                         $"{call}. trust me, this one's free",
+                         $"{call}. stick to the plan"));
+
+            if (enemyBroke)
+                Voice("they're broke — expect stacks, punish fast");
+
+            foreach (var kvp in zoneFails)
+                if (kvp.Value >= 2 && picked != null && kvp.Key != picked.zone)
+                {
+                    Voice($"{ZoneName(kvp.Key)} keeps failing us — we adjust");
+                    break;
+                }
+        }
         return picked;
     }
+
+    private static string ZoneName(StrategyZone z) => z switch
+    {
+        StrategyZone.NodeA => "A",
+        StrategyZone.NodeB => "B",
+        StrategyZone.Axis => "mid",
+        _ => "split"
+    };
 
     private static string BuyLabel(BuyType buy) => buy switch
     {
@@ -128,16 +191,22 @@ public class IGLBrain : MonoBehaviour
             commitCo = StartCoroutine(CallExecute(delay, voiced));
         }
 
-        // Defensive reads — only a live IGL rotates the team
-        if (igl.Profile.IsAlive && mySide == TeamSide.Defender)
+        if (!igl.Profile.IsAlive) return;
+
+        evalTimer -= Time.deltaTime;
+        if (mySide == TeamSide.Defender)
         {
             if (rotateCooldown > 0f) rotateCooldown -= Time.deltaTime;
-            evalTimer -= Time.deltaTime;
             if (evalTimer <= 0f)
             {
                 evalTimer = Constants.CT_EVAL_INTERVAL;
                 EvaluateDefense();
             }
+        }
+        else if (evalTimer <= 0f)
+        {
+            evalTimer = Constants.CT_EVAL_INTERVAL;
+            EvaluateAttack();
         }
     }
 
@@ -147,7 +216,9 @@ public class IGLBrain : MonoBehaviour
         if (strategyExecutor == null || !strategyExecutor.HasStagedBots(mySide)) yield break;
 
         if (voiced && igl?.Profile != null && igl.Profile.IsAlive)
-            Voice("EXECUTE EXECUTE — GO GO GO!");
+            Voice(Flavor("EXECUTE EXECUTE — GO GO GO!",
+                         "watch this — EXECUTE, NOW!",
+                         "on my count — execute, trade everything"));
         else if (FirstAlive() is BotController b)
             CommsFeed.Post(b.Profile.Data.nickname, "IGL's down — we're going in!", mySide);
 
@@ -157,12 +228,95 @@ public class IGLBrain : MonoBehaviour
         strategyExecutor.CommitStagedBots(mySide);
     }
 
+    // ===================== T-SIDE GAME STATE =====================
+
+    /// <summary>
+    /// The 4v1-and-no-plant fix: with a man advantage or a burning clock the
+    /// IGL sends everyone to the more open site to get the bomb down. And when
+    /// the round is clearly lost — save the guns instead of feeding.
+    /// </summary>
+    private void EvaluateAttack()
+    {
+        if (bombManager == null || bombManager.IsPlanted || bombManager.IsExploded) return;
+
+        int mine = CountAlive(myBots);
+        int theirs = CountAlive(enemyBots);
+        if (mine == 0) return;
+        float elapsed = Time.time - roundStartTime;
+
+        // Round is lost — save the guns
+        if (!saveCalled && mine <= 2 && theirs - mine >= 2 && elapsed > 30f)
+        {
+            saveCalled = true;
+            Voice(Flavor("numbers are bad — save the guns",
+                         "this one's dead — exit, keep the rifles",
+                         "we reset — save, win the next one"));
+            SendTeamTo("WP_TopAxis", bypassHazards: false);
+            return;
+        }
+
+        // Man advantage or burning clock and STILL no plant — take a site NOW
+        bool manAdvantage = mine - theirs >= 2 && elapsed > 20f;
+        bool clockBurning = elapsed > 50f;
+        if ((manAdvantage || clockBurning) && Time.time - lastPlantPushTime > 20f)
+        {
+            lastPlantPushTime = Time.time;
+            string site = PickOpenSite(out string wp);
+            Voice(manAdvantage
+                ? Flavor($"we're up bodies — take {site}, get it down!",
+                         $"free round — walk {site}, plant it",
+                         $"numbers are ours — {site}, plant, positions")
+                : Flavor($"clock's burning — hit {site} NOW!",
+                         $"time! {site}, go go go",
+                         $"clock check — {site}, execute now"));
+            SendTeamTo(wp, bypassHazards: true);
+        }
+    }
+
+    private string PickOpenSite(out string wpName)
+    {
+        GameObject aWP = GameObject.Find("WP_NodeA"), bWP = GameObject.Find("WP_NodeB");
+        int sigA = 0, sigB = 0;
+        if (CommsManager.Instance != null)
+        {
+            if (aWP != null) sigA = CommsManager.Instance.CountKnownEnemiesNear(mySide, aWP.transform.position, Constants.CT_SIGNAL_RANGE);
+            if (bWP != null) sigB = CommsManager.Instance.CountKnownEnemiesNear(mySide, bWP.transform.position, Constants.CT_SIGNAL_RANGE);
+        }
+        bool goA = sigA <= sigB;
+        wpName = goA ? "WP_NodeA" : "WP_NodeB";
+        return goA ? "A" : "B";
+    }
+
+    private void SendTeamTo(string wpName, bool bypassHazards)
+    {
+        GameObject wp = GameObject.Find(wpName);
+        if (wp == null) return;
+        foreach (var b in myBots)
+        {
+            if (b?.Profile == null || !b.Profile.IsAlive) continue;
+            b.HazardBypass = bypassHazards;
+            b.AssignWaypoints(new Transform[] { wp.transform });
+            b.StartExecuting();
+        }
+    }
+
+    private int CountAlive(List<BotController> bots)
+    {
+        if (bots == null) return 0;
+        int c = 0;
+        foreach (var b in bots)
+            if (b?.Profile != null && b.Profile.IsAlive) c++;
+        return c;
+    }
+
     private BotController FirstAlive()
     {
         foreach (var b in myBots)
             if (b?.Profile != null && b.Profile.IsAlive) return b;
         return null;
     }
+
+    // ===================== CT-SIDE DEFENSE =====================
 
     private void EvaluateDefense()
     {
@@ -217,6 +371,11 @@ public class IGLBrain : MonoBehaviour
         }
 
         if (rotated > 0)
-            Voice($"they're hitting {site} — rotate! {(anchor?.Profile != null ? anchor.Profile.Data.nickname : "someone")}, anchor far side");
+            Voice(Flavor($"they're hitting {site} — rotate! {AnchorName(anchor)}, anchor far side",
+                         $"{site}, all of it — rotate NOW, {AnchorName(anchor)} holds",
+                         $"read is {site} — rotating {rotated}, {AnchorName(anchor)} anchors"));
     }
+
+    private static string AnchorName(BotController anchor)
+        => anchor?.Profile?.Data != null ? anchor.Profile.Data.nickname : "someone";
 }

@@ -134,8 +134,8 @@ public class PlayerProfile
         float distMultiplier = Mathf.Lerp(1f, weapon.rangeFalloff, distRatio);
         hitChance *= distMultiplier;
 
-        // Consistency — high consistency = more reliable
-        float consistencyFactor = 1f - (Constants.MAX_VARIANCE - Data.consistency * Constants.CONSISTENCY_REDUCTION) / 100f;
+        // Consistency — high consistency = more reliable (Effective = base + chair bonus)
+        float consistencyFactor = 1f - (Constants.MAX_VARIANCE - EffectiveConsistency * Constants.CONSISTENCY_REDUCTION) / 100f;
         hitChance *= Mathf.Lerp(0.85f, 1.1f, consistencyFactor);
 
         return Mathf.Clamp(hitChance, 0.05f, 0.95f);

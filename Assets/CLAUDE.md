@@ -48,8 +48,8 @@ Match engine is built and playable. Two coaching phases work (opening call + mid
 | `MatchEconomy.cs` | Win/loss bonuses, kill rewards, buy type logic |
 | `BotController.cs` | Bot MonoBehaviour — movement, shooting, NavMesh |
 | `BotStateMachine.cs` | State transitions (Idle→Moving→Peeking→Engaged→Dead) |
-| `DuelResolver.cs` | Stat-based duel formula |
-| `DuelTrigger.cs` | Raycast LoS detection between bots |
+| `DuelResolver.cs` | DuelOutcome struct for kill events (legacy one-roll formula unused) |
+| `EngagementSystem.cs` | Live combat — LoS scans, per-shot fire, victim reaction, comms hooks |
 | `StrategyData.cs` | ScriptableObject defining waypoint paths per strategy |
 | `StrategyExecutor.cs` | Assigns bots to paths, handles Execute/Control/Fake/Rush |
 | `CoachPanel.cs` | Opening call UI + StrategyAssignment |
@@ -91,13 +91,21 @@ Two bomb sites (Node A, Node B), central mid (Axis). All other maps reuse this b
 - CT retake: full retake with utility or save
 - Clutch: aggressive vs passive play style
 
-## Duel Formula
+## Combat Model
+
+Combat is sustained per-shot fire in `EngagementSystem` — NOT a one-roll duel (that legacy system was removed):
 
 ```
-WinChance = BASE(50) + (Aim × 0.30) + (Reflexes × 0.15) + EquipmentBonus + BuyModifier + StrategyCounterBonus + Random(0, MaxVariance)
+hitChance = weaponAccuracy × (0.5 + Aim/200) × sprayPenalty × distanceFalloff
+          × consistencyFactor × movementPenalty × clutchFactor(1vX only)
 ```
 
-Consistency reduces MaxVariance. Clutch stat adds bonus in 1vX. See `Constants.cs` for all weights.
+- Reaction time before first shot: lerp(0.5s → 0.08s) by Effective Reflexes; AWP +0.3s
+- Clutch: last-alive vs 2+ → hit-chance × (1 + (Clutch−50)/100 × 0.3)
+- Non-lethal hits alert the victim — they snap toward the shooter and engage back
+- Buy type affects combat through the assigned weapon (Full = rifle/AWP, Eco = pistol)
+- Equipment feeds Effective* stats: PC/mouse → Aim, monitor → Reflexes, chair → Consistency, headset → Communication (comms info quality)
+- Idle/peeking bots pre-aim comms intel or sweep their held angle — they never track enemies through walls
 
 ## Economy
 

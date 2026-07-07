@@ -70,7 +70,7 @@ public class MidRoundPanel : MonoBehaviour
         if (side == TeamSide.Attacker)
         {
             // Show EXECUTE if bots are staged, otherwise COMMIT (push nearest)
-            bool hasStaged = strategyExecutor != null && strategyExecutor.HasStagedBots();
+            bool hasStaged = strategyExecutor != null && strategyExecutor.HasStagedBots(side);
 
             options.Add(new MidRoundOption
             {
@@ -128,16 +128,16 @@ public class MidRoundPanel : MonoBehaviour
         {
             case MidRoundCall.Commit:
                 // >>> COMMIT: send staged bots + utility <<<
-                if (strategyExecutor != null && strategyExecutor.HasStagedBots())
+                if (strategyExecutor != null && strategyExecutor.HasStagedBots(side))
                 {
-                    StrategyZone zone = strategyExecutor.GetLastStrategyZone();
+                    StrategyZone zone = strategyExecutor.GetLastStrategyZone(side);
 
                     // Throw utility FIRST
                     if (grenadeManager != null)
                         grenadeManager.OnCommitCalled(zone, side);
 
                     // Then send bots (slight delay for utility to land)
-                    StartCoroutine(DelayedCommit(0.8f));
+                    StartCoroutine(DelayedCommit(0.8f, side));
                 }
                 else
                 {
@@ -193,10 +193,10 @@ public class MidRoundPanel : MonoBehaviour
         }
     }
 
-    private System.Collections.IEnumerator DelayedCommit(float delay)
+    private System.Collections.IEnumerator DelayedCommit(float delay, TeamSide side)
     {
         yield return new WaitForSeconds(delay);
-        if (strategyExecutor != null) strategyExecutor.CommitStagedBots();
+        if (strategyExecutor != null) strategyExecutor.CommitStagedBots(side);
     }
 
     private void SendBotsToWP(List<BotController> bots, string wp)
@@ -217,6 +217,13 @@ public class MidRoundPanel : MonoBehaviour
         foreach (var b in bots)
         {
             if (b == null || b.Profile == null || !b.Profile.IsAlive) continue;
+            // Actually stop the agent — transitioning to Peeking alone leaves
+            // the NavMeshAgent driving to its old destination
+            if (b.Agent != null && b.Agent.isOnNavMesh)
+            {
+                b.Agent.isStopped = true;
+                b.Agent.ResetPath();
+            }
             b.GetComponent<BotStateMachine>()?.TransitionTo(BotState.Peeking);
         }
     }

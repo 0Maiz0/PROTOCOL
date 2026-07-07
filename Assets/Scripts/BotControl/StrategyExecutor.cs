@@ -2,13 +2,15 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// STRATEGY EXECUTOR v2
-/// 
-/// KEY CHANGE: Execute/Control strategies STOP at staging position.
-/// Bots go to the SECOND-TO-LAST waypoint and WAIT.
-/// When coach calls COMMIT → remaining waypoints (site) are executed.
-/// 
-/// Rush strategies run the full path immediately (no staging).
+/// STRATEGY EXECUTOR v3
+///
+/// Staging is tracked PER TEAM SIDE — both coaches (player + AI) share this
+/// executor, so each side keeps its own staged bots, remaining paths and last
+/// strategy. (v2 had one shared list: the AI's ExecuteStrategy call wiped the
+/// player's staged Execute every round.)
+///
+/// Execute/Control strategies stop at staging (all waypoints except the last)
+/// and wait for CommitStagedBots(side). Rush/Default/Fake run the full path.
 /// </summary>
 public class StrategyExecutor : MonoBehaviour
 {
@@ -18,10 +20,14 @@ public class StrategyExecutor : MonoBehaviour
     private Dictionary<string, Transform> waypointMap = new Dictionary<string, Transform>();
     private bool lurkerEnabled = false;
 
-    // Track bots waiting at staging for commit
-    private List<BotController> stagedBots = new List<BotController>();
-    private List<Transform[]> remainingPaths = new List<Transform[]>();
-    private StrategyData lastStrategy;
+    private class StagingGroup
+    {
+        public readonly List<BotController> bots = new List<BotController>();
+        public readonly List<Transform[]> paths = new List<Transform[]>();
+        public StrategyData lastStrategy;
+    }
+
+    private readonly Dictionary<TeamSide, StagingGroup> stagingBySide = new Dictionary<TeamSide, StagingGroup>();
 
     private void Awake() { CacheWaypoints(); }
 
@@ -35,19 +41,32 @@ public class StrategyExecutor : MonoBehaviour
 
     public void SetLurkerEnabled(bool enabled) { lurkerEnabled = enabled; }
 
+    private StagingGroup GetGroup(TeamSide side)
+    {
+        if (!stagingBySide.TryGetValue(side, out StagingGroup g))
+        {
+            g = new StagingGroup();
+            stagingBySide[side] = g;
+        }
+        return g;
+    }
+
     /// <summary>
-    /// Execute a strategy. For Execute/Control: bots stop at staging (second-to-last WP).
-    /// For Rush/Default: full path immediately.
+    /// Execute a strategy for one team. For Execute/Control: bots stop at staging
+    /// (second-to-last WP) until CommitStagedBots(side). For Rush/Default: full path.
+    /// The lurker toggle is a player-team feature — AI passes allowLurker: false.
     /// </summary>
-    public void ExecuteStrategy(StrategyData strategy, List<BotController> bots)
+    public void ExecuteStrategy(StrategyData strategy, List<BotController> bots, TeamSide side, bool allowLurker = true)
     {
         if (strategy == null) { Debug.LogError("StrategyExecutor: No strategy!"); return; }
 
-        lastStrategy = strategy;
-        stagedBots.Clear();
-        remainingPaths.Clear();
+        StagingGroup group = GetGroup(side);
+        group.bots.Clear();
+        group.paths.Clear();
+        group.lastStrategy = strategy;
 
         bool isExecute = (strategy.type == StrategyType.Execute || strategy.type == StrategyType.Control);
+        bool useLurker = allowLurker && lurkerEnabled;
         string[][] allPaths = strategy.GetAllPaths();
 
         for (int i = 0; i < bots.Count && i < 5; i++)
@@ -56,7 +75,7 @@ public class StrategyExecutor : MonoBehaviour
 
             string[] pathNames;
 
-            if (lurkerEnabled && strategy.supportsLurker && i == strategy.lurkerBotIndex
+            if (useLurker && strategy.supportsLurker && i == strategy.lurkerBotIndex
                 && strategy.lurkerPath != null && strategy.lurkerPath.Length > 0)
             {
                 pathNames = strategy.lurkerPath;
@@ -83,10 +102,10 @@ public class StrategyExecutor : MonoBehaviour
                 bots[i].StartExecuting();
 
                 // Save remaining path for commit
-                stagedBots.Add(bots[i]);
-                remainingPaths.Add(sitePath);
+                group.bots.Add(bots[i]);
+                group.paths.Add(sitePath);
 
-                Debug.Log($"  Bot {i} → staging at {pathNames[pathNames.Length - 2]} (waiting for commit)");
+                Debug.Log($"  Bot {i} ({side}) → staging at {pathNames[pathNames.Length - 2]} (waiting for commit)");
             }
             else
             {
@@ -96,43 +115,44 @@ public class StrategyExecutor : MonoBehaviour
             }
         }
 
-        Debug.Log($"Strategy Executed: {strategy.strategyName} | Type: {strategy.type} | Staged: {stagedBots.Count}");
+        Debug.Log($"Strategy Executed ({side}): {strategy.strategyName} | Type: {strategy.type} | Staged: {group.bots.Count}");
     }
 
     /// <summary>
-    /// Called when coach commits — send staged bots to the site.
+    /// Coach commits — send that side's staged bots to the site.
     /// </summary>
-    public void CommitStagedBots()
+    public void CommitStagedBots(TeamSide side)
     {
+        StagingGroup group = GetGroup(side);
         int committed = 0;
-        for (int i = 0; i < stagedBots.Count; i++)
+        for (int i = 0; i < group.bots.Count; i++)
         {
-            var bot = stagedBots[i];
+            var bot = group.bots[i];
             if (bot == null || !bot.Profile.IsAlive) continue;
-            if (i >= remainingPaths.Count) continue;
+            if (i >= group.paths.Count) continue;
 
-            bot.AssignWaypoints(remainingPaths[i]);
+            bot.AssignWaypoints(group.paths[i]);
             bot.StartExecuting();
             committed++;
         }
 
-        Debug.Log($"COMMIT: {committed} bots pushing site!");
-        stagedBots.Clear();
-        remainingPaths.Clear();
+        Debug.Log($"COMMIT ({side}): {committed} bots pushing site!");
+        group.bots.Clear();
+        group.paths.Clear();
     }
 
     /// <summary>
-    /// Are there bots waiting at staging for a commit call?
-    /// Used by MidRoundPanel to show "Execute" button.
+    /// Are there bots of this side waiting at staging for a commit call?
     /// </summary>
-    public bool HasStagedBots() { return stagedBots.Count > 0; }
+    public bool HasStagedBots(TeamSide side) => GetGroup(side).bots.Count > 0;
 
     /// <summary>
-    /// Get the zone of the last executed strategy (for utility targeting).
+    /// Zone of the last strategy this side executed (for utility targeting).
     /// </summary>
-    public StrategyZone GetLastStrategyZone()
+    public StrategyZone GetLastStrategyZone(TeamSide side)
     {
-        return lastStrategy != null ? lastStrategy.zone : StrategyZone.NodeA;
+        var s = GetGroup(side).lastStrategy;
+        return s != null ? s.zone : StrategyZone.NodeA;
     }
 
     private Transform[] ResolveWaypoints(string[] names)

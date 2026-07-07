@@ -29,6 +29,9 @@ public class EngagementSystem : MonoBehaviour
     private float seekTimer;         // Timer for checking comms info
     private float helpCallTimer;     // Cooldown between help requests
     private bool hasCalledHelp;
+    private float clutchFactor = 1f; // Hit-chance multiplier when last alive vs 2+
+
+    private static Material tracerMaterial; // Shared — one material for all tracers
 
     private static List<EngagementSystem> allSystems = new List<EngagementSystem>();
 
@@ -170,6 +173,12 @@ public class EngagementSystem : MonoBehaviour
         disengageTimer = 0f;
         hasCalledHelp = false;
 
+        // Clutch stat only matters in a real clutch: last alive against 2+
+        clutchFactor = 1f;
+        if (IsInClutch())
+            clutchFactor = 1f + ((myBot.Profile.Data.clutch - Constants.CLUTCH_BASELINE) / 100f)
+                                * Constants.CLUTCH_HITCHANCE_SCALE;
+
         float reactionTime = Mathf.Lerp(0.5f, 0.08f, myBot.Profile.EffectiveReflexes / 100f);
         if (myBot.Profile.CurrentWeapon.weaponName == "AWP")
             reactionTime += 0.3f;
@@ -182,6 +191,39 @@ public class EngagementSystem : MonoBehaviour
         // Cover: only T-side rifle in open
         if (ShouldSeekCover() && coverBehavior != null)
             coverBehavior.StartCombatCover(target.transform);
+    }
+
+    private bool IsInClutch()
+    {
+        int mates = 0, enemies = 0;
+        foreach (var s in allSystems)
+        {
+            if (s == this || s.myBot == null || s.myBot.Profile == null || !s.myBot.Profile.IsAlive) continue;
+            if (s.myBot.Side == myBot.Side) mates++;
+            else enemies++;
+        }
+        return mates == 0 && enemies >= 2;
+    }
+
+    /// <summary>
+    /// Called by the shooter's EngagementSystem when we take a non-lethal hit.
+    /// You know the direction you're shot from — turn and fight back if possible.
+    /// </summary>
+    public void OnDamagedBy(BotController shooter)
+    {
+        if (myBot == null || myBot.Profile == null || !myBot.Profile.IsAlive || myBot.IsFrozen) return;
+        if (shooter == null || shooter.Profile == null || !shooter.Profile.IsAlive) return;
+        if (myStateMachine.CurrentState == BotState.Shooting ||
+            myStateMachine.CurrentState == BotState.Dead) return;
+
+        Vector3 dir = shooter.transform.position - transform.position;
+        dir.y = 0f;
+        if (dir.sqrMagnitude > 0.01f)
+            transform.rotation = Quaternion.LookRotation(dir);
+
+        float dist = Vector3.Distance(transform.position, shooter.transform.position);
+        if (dist <= myBot.Profile.CurrentWeapon.range && HasLineOfSight(shooter.transform, dist))
+            StartEngagement(shooter);
     }
 
     private bool ShouldSeekCover()
@@ -251,7 +293,7 @@ public class EngagementSystem : MonoBehaviour
             movePenalty = myBot.CanRunAndGun() ? 0.7f : 0.25f;
         }
 
-        float hitChance = profile.CalculateHitChance(distance) * movePenalty;
+        float hitChance = Mathf.Min(profile.CalculateHitChance(distance) * movePenalty * clutchFactor, 0.98f);
         bool isHit = Random.value < hitChance;
 
         DrawTracer(transform, currentTarget.transform, isHit);
@@ -261,6 +303,8 @@ public class EngagementSystem : MonoBehaviour
             float damage = profile.CalculateDamage(distance);
             bool killed = currentTarget.Profile.TakeDamage(damage);
             if (killed) OnTargetKilled(currentTarget);
+            else if (currentTarget.TryGetComponent(out EngagementSystem victim))
+                victim.OnDamagedBy(myBot);
         }
     }
 
@@ -351,13 +395,15 @@ public class EngagementSystem : MonoBehaviour
         lr.SetPosition(0, start); lr.SetPosition(1, end);
         lr.startColor = isHit ? Color.yellow : new Color(1, 1, 0.5f, 0.3f);
         lr.endColor = isHit ? new Color(1, 0.5f, 0, 0.6f) : new Color(1, 0.8f, 0.3f, 0.1f);
-        lr.material = new Material(Shader.Find("Sprites/Default"));
+        // Shared material — a new Material per shot leaked (colors are vertex-based anyway)
+        if (tracerMaterial == null) tracerMaterial = new Material(Shader.Find("Sprites/Default"));
+        lr.material = tracerMaterial;
         Object.Destroy(obj, 0.15f);
     }
 
     public static void ClearAllEngagements()
     {
         foreach (var s in allSystems)
-        { s.currentTarget = null; s.disengageTimer = 0; s.fireTimer = 0; s.hasCalledHelp = false; }
+        { s.currentTarget = null; s.disengageTimer = 0; s.fireTimer = 0; s.hasCalledHelp = false; s.clutchFactor = 1f; }
     }
 }

@@ -113,7 +113,7 @@ public static class WeaponData
     }
 
     /// <summary>
-    /// Get effective range for engagement detection (used by DuelTrigger).
+    /// Get effective range for engagement detection (used by EngagementSystem).
     /// Returns the max sight range for this buy type.
     /// </summary>
     public static float GetEngagementRange(BuyType buyType, Role role = Role.Support)

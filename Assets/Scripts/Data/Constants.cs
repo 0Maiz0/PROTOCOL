@@ -45,6 +45,13 @@ public static class Constants
     public const float RAYCAST_CHECK_INTERVAL = 0.2f; // LoS check frequency
     public const float DUEL_RESOLVE_TIME = 0.5f; // time for duel animation
 
+    // Bot AI (engine fix pass)
+    public const float CLUTCH_HITCHANCE_SCALE = 0.3f; // hit-chance multiplier scale in 1vX
+    public const float SCAN_SWEEP_ARC = 120f;         // idle hold-angle sweep, degrees
+    public const float SCAN_SWEEP_SPEED = 45f;        // sweep rotation speed, deg/sec
+    public const float AI_COMMIT_DELAY_MIN = 10f;     // AI coach commit window after strategies run
+    public const float AI_COMMIT_DELAY_MAX = 18f;
+
     // Career (Sprint 2)
     public const int STARTING_BUDGET = 10000;
     public const int QUALIFIER_PRIZE_WIN = 3000;

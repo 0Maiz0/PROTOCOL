@@ -58,13 +58,14 @@ public class ObserverCamera : MonoBehaviour
 
 	private void OnEnable()
 	{
-		DuelTrigger.OnDuelResolved += OnDuelResolved;
+		// EngagementSystem is the live combat system (DuelTrigger was legacy and never fired)
+		EngagementSystem.OnDuelResolved += OnDuelResolved;
 		currentZoom = followDistance;
 	}
 
 	private void OnDisable()
 	{
-		DuelTrigger.OnDuelResolved -= OnDuelResolved;
+		EngagementSystem.OnDuelResolved -= OnDuelResolved;
 	}
 
 	private void Update()

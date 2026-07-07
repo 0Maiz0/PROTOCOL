@@ -193,7 +193,7 @@ public class RoundManager : MonoBehaviour
 		{
 			lastPlayerStrategy = selectedStrategy.strategyName;
 			var playerBots = (State.playerTeamSide == TeamSide.Attacker) ? attackerBots : defenderBots;
-			strategyExecutor.ExecuteStrategy(selectedStrategy, playerBots);
+			strategyExecutor.ExecuteStrategy(selectedStrategy, playerBots, State.playerTeamSide);
 			if (grenadeManager != null) grenadeManager.OnStrategyExecuted(selectedStrategy, State.playerTeamSide);
 		}
 

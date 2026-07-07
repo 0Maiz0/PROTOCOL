@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
@@ -15,6 +16,7 @@ public class AICoach : MonoBehaviour
     [Header("References")]
     [SerializeField] private StrategyExecutor strategyExecutor;
     [SerializeField] private BombManager bombManager;
+    [SerializeField] private GrenadeManager grenadeManager;
 
     [Header("CT Strategies")]
     [SerializeField] private StrategyData[] ctStrategies;
@@ -36,12 +38,15 @@ public class AICoach : MonoBehaviour
     private List<BotController> currentBots;
     private string plantedSite = "";
 
+    private Coroutine autoCommitCo;
+
     private void Start()
     {
         if (bombManager != null)
         {
             bombManager.OnBombPlanted += OnBombPlanted;
         }
+        if (grenadeManager == null) grenadeManager = FindObjectOfType<GrenadeManager>();
     }
 
     private void OnDestroy()
@@ -88,11 +93,34 @@ public class AICoach : MonoBehaviour
 
         if (picked != null && strategyExecutor != null)
         {
-            strategyExecutor.ExecuteStrategy(picked, bots);
+            strategyExecutor.ExecuteStrategy(picked, bots, aiSide, allowLurker: false);
             Debug.Log($"AI COACH ({aiSide}): Selected {picked.strategyName}");
+
+            // Execute/Control strats stage and wait — the AI must make its own
+            // commit call, or its bots stand at staging forever.
+            if (autoCommitCo != null) StopCoroutine(autoCommitCo);
+            if (picked.type == StrategyType.Execute || picked.type == StrategyType.Control)
+                autoCommitCo = StartCoroutine(AutoCommit(aiSide,
+                    Random.Range(Constants.AI_COMMIT_DELAY_MIN, Constants.AI_COMMIT_DELAY_MAX)));
         }
 
         return picked;
+    }
+
+    /// <summary>
+    /// AI's own commit call: utility first, then push — mirrors the player's flow.
+    /// </summary>
+    private IEnumerator AutoCommit(TeamSide side, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        if (strategyExecutor == null || !strategyExecutor.HasStagedBots(side)) yield break;
+
+        if (grenadeManager != null)
+            grenadeManager.OnCommitCalled(strategyExecutor.GetLastStrategyZone(side), side);
+
+        yield return new WaitForSeconds(0.8f); // let utility land
+        strategyExecutor.CommitStagedBots(side);
+        Debug.Log($"AI COACH ({side}): COMMIT — executing!");
     }
 
     private StrategyData PickStrategy(StrategyData[] available, TeamSide side)

@@ -19,10 +19,16 @@ public class BotController : MonoBehaviour
     private Transform[] currentWaypoints;
     private int waypointIndex;
     private float scanTimer;
-    private Transform nearestEnemy;
     private float seekCheckTimer;
     private bool isSeekingTarget;
     private float molotovCheckTimer;
+
+    // Hold-angle scanning: face known enemy intel (comms), otherwise sweep.
+    // No direct enemy-position peeking — bots only "know" what the team reported.
+    private bool hasScanPoint;
+    private Vector3 scanPoint;
+    private float scanBaseYaw;
+    private float sweepPhaseOffset;
 
     public void Initialize(PlayerProfile profile, TeamSide side)
     {
@@ -30,6 +36,7 @@ public class BotController : MonoBehaviour
         if (agent == null) agent = GetComponent<NavMeshAgent>();
         if (stateMachine == null) stateMachine = GetComponent<BotStateMachine>();
         stateMachine.OnStateChanged += OnStateChanged;
+        sweepPhaseOffset = Random.Range(0f, 100f); // desync sweep across bots
     }
 
     private void OnDestroy() { if (stateMachine != null) stateMachine.OnStateChanged -= OnStateChanged; }
@@ -85,14 +92,24 @@ public class BotController : MonoBehaviour
         if (stateMachine.CurrentState == BotState.Peeking || stateMachine.CurrentState == BotState.Idle)
         {
             scanTimer -= Time.deltaTime;
-            if (scanTimer <= 0f) { scanTimer = 0.3f; FindNearestEnemy(); }
+            if (scanTimer <= 0f) { scanTimer = 0.5f; UpdateScanPoint(); }
 
-            if (nearestEnemy != null)
+            if (hasScanPoint)
             {
-                Vector3 dir = nearestEnemy.position - transform.position; dir.y = 0;
+                // Team intel says an enemy is around there — pre-aim it
+                Vector3 dir = scanPoint - transform.position; dir.y = 0;
                 if (dir.sqrMagnitude > 0.01f)
                     transform.rotation = Quaternion.Slerp(transform.rotation,
                         Quaternion.LookRotation(dir), 5f * Time.deltaTime);
+            }
+            else
+            {
+                // No intel — sweep the held angle to cover the FOV blind spots
+                float sweep = Mathf.PingPong((Time.time + sweepPhaseOffset) * Constants.SCAN_SWEEP_SPEED,
+                    Constants.SCAN_SWEEP_ARC) - Constants.SCAN_SWEEP_ARC * 0.5f;
+                Quaternion target = Quaternion.Euler(0f, scanBaseYaw + sweep, 0f);
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, target,
+                    Constants.SCAN_SWEEP_SPEED * Time.deltaTime);
             }
 
             seekCheckTimer -= Time.deltaTime;
@@ -101,13 +118,22 @@ public class BotController : MonoBehaviour
         }
     }
 
+    private void UpdateScanPoint()
+    {
+        hasScanPoint = CommsManager.Instance != null &&
+                       CommsManager.Instance.GetNearestKnownEnemy(this, out scanPoint);
+    }
+
     // ===================== MOLOTOV AVOIDANCE =====================
 
     private void AvoidMolotov()
     {
-        GrenadeEffect[] effects = FindObjectsByType<GrenadeEffect>(FindObjectsSortMode.None);
-        foreach (var fx in effects)
+        // Static registry — FindObjectsByType every 0.5s per bot was a hot-path scan
+        var effects = GrenadeEffect.ActiveEffects;
+        for (int i = 0; i < effects.Count; i++)
         {
+            var fx = effects[i];
+            if (fx == null) continue;
             if (!fx.IsActive || fx.Type != GrenadeType.Molotov) continue;
 
             float dist = Vector3.Distance(transform.position, fx.transform.position);
@@ -171,6 +197,9 @@ public class BotController : MonoBehaviour
 
     private void OnStateChanged(BotState oldState, BotState newState)
     {
+        // Remember the angle we start holding — the idle sweep oscillates around it
+        if (newState == BotState.Peeking || newState == BotState.Idle)
+            scanBaseYaw = transform.eulerAngles.y;
         if (newState == BotState.Shooting)
         {
             isSeekingTarget = false;
@@ -200,18 +229,6 @@ public class BotController : MonoBehaviour
         return false;
     }
 
-    private void FindNearestEnemy()
-    {
-        nearestEnemy = null; float best = float.MaxValue;
-        foreach (var bot in FindObjectsByType<BotController>(FindObjectsSortMode.None))
-        {
-            if (bot == this || bot.Side == Side) continue;
-            if (bot.Profile == null || !bot.Profile.IsAlive) continue;
-            float d = Vector3.Distance(transform.position, bot.transform.position);
-            if (d < best) { best = d; nearestEnemy = bot.transform; }
-        }
-    }
-
     private void MoveToNextWaypoint()
     {
         if (waypointIndex < currentWaypoints.Length)
@@ -235,7 +252,8 @@ public class BotController : MonoBehaviour
         Profile.IsAlive = true; Profile.RoundKills = 0;
         Profile.ResetCombatState(CurrentBuyType);
         stateMachine.ResetForRound();
-        waypointIndex = 0; currentWaypoints = null; nearestEnemy = null;
+        waypointIndex = 0; currentWaypoints = null; hasScanPoint = false;
+        scanBaseYaw = transform.eulerAngles.y;
         isSeekingTarget = false; seekCheckTimer = 3f;
     }
 }

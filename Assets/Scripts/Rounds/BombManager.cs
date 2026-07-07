@@ -105,8 +105,13 @@ public class BombManager : MonoBehaviour
 
     private void ProcessPlant(BotController planter, BombSite site)
     {
-        if (!isPlanting)
+        // Fresh plant OR the planter changed (previous one died mid-plant) —
+        // progress restarts and the new planter gets stopped properly
+        if (!isPlanting || currentPlanter != planter)
         {
+            if (currentPlanter != null && currentPlanter != planter)
+                currentPlanter.IsPlanting = false;
+
             isPlanting = true;
             plantProgress = 0f;
             currentPlanter = planter;

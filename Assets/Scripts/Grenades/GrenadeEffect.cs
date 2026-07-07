@@ -21,6 +21,13 @@ public class GrenadeEffect : MonoBehaviour
     private float tickTimer;
     private HashSet<int> flashedBots = new HashSet<int>();
 
+    // Registry — IsBlockedBySmoke runs inside every LoS check (hot path),
+    // FindObjectsByType there was scanning the scene dozens of times per frame
+    public static readonly List<GrenadeEffect> ActiveEffects = new List<GrenadeEffect>();
+
+    private void OnEnable() { ActiveEffects.Add(this); }
+    private void OnDisable() { ActiveEffects.Remove(this); }
+
     private void Start()
     {
         timer = Duration;
@@ -59,10 +66,10 @@ public class GrenadeEffect : MonoBehaviour
 
     public static bool IsBlockedBySmoke(Vector3 from, Vector3 to)
     {
-        GrenadeEffect[] all = FindObjectsByType<GrenadeEffect>(FindObjectsSortMode.None);
-        foreach (var fx in all)
+        for (int i = 0; i < ActiveEffects.Count; i++)
         {
-            if (!fx.IsActive || fx.Type != GrenadeType.Smoke) continue;
+            var fx = ActiveEffects[i];
+            if (fx == null || !fx.IsActive || fx.Type != GrenadeType.Smoke) continue;
             if (LineHitsSphere(from, to, fx.transform.position, fx.Radius))
                 return true;
         }

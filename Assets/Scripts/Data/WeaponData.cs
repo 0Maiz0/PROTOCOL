@@ -85,7 +85,7 @@ public static class WeaponData
         weaponName = "AWP",
         range = 55f,
         damage = 110f,
-        fireInterval = 1.2f,
+        fireInterval = 1.6f, // bolt cycle + re-scope — no boom-boom double taps
         magazineSize = 5,
         reloadTime = 3.5f,
         baseAccuracy = 0.90f,

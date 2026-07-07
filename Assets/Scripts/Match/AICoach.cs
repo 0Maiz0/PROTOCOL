@@ -39,6 +39,7 @@ public class AICoach : MonoBehaviour
     private string plantedSite = "";
 
     private Coroutine autoCommitCo;
+    private PostPlantManager postPlantManager;
 
     private void Start()
     {
@@ -47,6 +48,9 @@ public class AICoach : MonoBehaviour
             bombManager.OnBombPlanted += OnBombPlanted;
         }
         if (grenadeManager == null) grenadeManager = FindObjectOfType<GrenadeManager>();
+        // PostPlantManager runs the grouped retake — our simple rotation is only a fallback,
+        // otherwise the two systems issue conflicting move orders on plant
+        postPlantManager = FindObjectOfType<PostPlantManager>();
     }
 
     private void OnDestroy()
@@ -59,8 +63,8 @@ public class AICoach : MonoBehaviour
 
     private void Update()
     {
-        // Handle CT rotation after bomb plant
-        if (bombPlantDetected && !hasRotated)
+        // Handle CT rotation after bomb plant (fallback only — PostPlantManager owns retakes)
+        if (postPlantManager == null && bombPlantDetected && !hasRotated)
         {
             rotationTimer -= Time.deltaTime;
             if (rotationTimer <= 0f)

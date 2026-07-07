@@ -246,6 +246,7 @@ public class GrenadeManager : MonoBehaviour
         if (thrower == null || !thrower.Profile.IsAlive || target == Vector3.zero)
             yield break;
 
+        TeamSide throwerSide = thrower.Side; // capture — thrower can die mid-flight
         Vector3 start = thrower.transform.position + Vector3.up * 1.5f;
 
         // GameSense = accuracy of the throw
@@ -295,17 +296,18 @@ public class GrenadeManager : MonoBehaviour
 
         // Destroy projectile, spawn effect at landing position
         Object.Destroy(projectile);
-        SpawnEffect(type, target);
+        SpawnEffect(type, target, throwerSide);
     }
 
     // ===================== SPAWN EFFECT AT LANDING =====================
 
-    private void SpawnEffect(GrenadeType type, Vector3 position)
+    private void SpawnEffect(GrenadeType type, Vector3 position, TeamSide throwerSide)
     {
         GameObject obj = new GameObject($"Grenade_{type}");
         obj.transform.position = position;
         GrenadeEffect fx = obj.AddComponent<GrenadeEffect>();
         fx.Type = type;
+        fx.ThrowerSide = throwerSide;
 
         switch (type)
         {

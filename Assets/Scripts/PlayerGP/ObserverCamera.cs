@@ -23,6 +23,7 @@ public class ObserverCamera : MonoBehaviour
 	[SerializeField] private Vector3 overviewRotation = new Vector3(65f, 0f, 0f);
 
 	[Header("Follow")]
+	[SerializeField] private bool povMode = true; // player-POV follow (V toggles third person)
 	[SerializeField] private float followHeight = 10f;
 	[SerializeField] private float followDistance = 6f;
 	[SerializeField] private float smoothSpeed = 8f;
@@ -128,6 +129,13 @@ public class ObserverCamera : MonoBehaviour
 		{
 			autoDirector = !autoDirector;
 			Debug.Log($"Auto-Director: {(autoDirector ? "ON" : "OFF")}");
+		}
+
+		// V: toggle POV / third-person follow
+		if (Input.GetKeyDown(KeyCode.V))
+		{
+			povMode = !povMode;
+			Debug.Log($"Camera: {(povMode ? "POV" : "third person")}");
 		}
 
 		// F: toggle free camera
@@ -246,6 +254,17 @@ public class ObserverCamera : MonoBehaviour
 		if (currentTarget == null)
 		{
 			ApplyOverview();
+			return;
+		}
+
+		// POV: camera at the bot's eyes, looking where they look.
+		// Right-click orbit temporarily overrides for a look-around.
+		if (povMode && !isOrbiting && currentMode != CameraMode.Clutch)
+		{
+			Vector3 eye = currentTarget.position + Vector3.up * 1.55f + currentTarget.forward * 0.35f;
+			transform.position = Vector3.Lerp(transform.position, eye, smoothSpeed * 1.5f * Time.deltaTime);
+			Quaternion povRot = Quaternion.LookRotation(currentTarget.forward, Vector3.up);
+			transform.rotation = Quaternion.Slerp(transform.rotation, povRot, smoothSpeed * Time.deltaTime);
 			return;
 		}
 
@@ -442,7 +461,7 @@ public class ObserverCamera : MonoBehaviour
 		GUI.Label(new Rect(10, y, 270, 18), "1-5: T players | 6-0: CT players", s);
 		GUI.Label(new Rect(10, y + 18, 270, 18), "TAB: Next alive | SPACE: Auto-director", s);
 		GUI.Label(new Rect(10, y + 36, 270, 18), "F: Free cam (WASD+Mouse) | Scroll: Zoom", s);
-		GUI.Label(new Rect(10, y + 54, 270, 18), "Right Click: Orbit around player", s);
+		GUI.Label(new Rect(10, y + 54, 270, 18), "V: POV/3rd person | Right Click: Orbit", s);
 
 		// Current state
 		string targetName = "";

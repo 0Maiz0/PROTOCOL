@@ -52,6 +52,14 @@ public static class Constants
     public const float AI_COMMIT_DELAY_MIN = 10f;     // AI coach commit window after strategies run
     public const float AI_COMMIT_DELAY_MAX = 18f;
 
+    // Bot AI (playtest #1 pass)
+    public const float BURST_SPRAY_LIMIT = 0.45f;   // stop spraying above this, re-aim
+    public const float BURST_RESUME_SPRAY = 0.15f;  // resume firing when spray recovers to this
+    public const float HAZARD_LOOKAHEAD = 5f;       // how far ahead bots check for smokes/mollies
+    public const float RETAKE_GROUP_RADIUS = 8f;    // "gathered at approach" radius
+    public const float RETAKE_GROUP_TIMEOUT = 8f;   // max seconds to wait for the group
+    public const float DEFUSE_ALERT_RANGE = 35f;    // Ts inside this range snap to the defuse sound
+
     // Career (Sprint 2)
     public const int STARTING_BUDGET = 10000;
     public const int QUALIFIER_PRIZE_WIN = 3000;

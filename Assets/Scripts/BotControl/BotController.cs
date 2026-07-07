@@ -15,6 +15,7 @@ public class BotController : MonoBehaviour
     public NavMeshAgent Agent => agent;
     public bool IsFrozen { get; set; } = true;
     public bool IsPlanting { get; set; } = false; // Set by BombManager
+    public bool HazardBypass { get; set; } = false; // Urgent pushes (retake, defuse peek) ignore smoke/molly holds
 
     private Transform[] currentWaypoints;
     private int waypointIndex;
@@ -29,6 +30,10 @@ public class BotController : MonoBehaviour
     private Vector3 scanPoint;
     private float scanBaseYaw;
     private float sweepPhaseOffset;
+
+    // Hazard-ahead: don't walk into mollies or push enemy smokes
+    private float hazardCheckTimer;
+    private bool hazardHold;
 
     public void Initialize(PlayerProfile profile, TeamSide side)
     {
@@ -75,6 +80,18 @@ public class BotController : MonoBehaviour
         }
 
         if (stateMachine.IsInCombat) return;
+
+        // HAZARD AHEAD — hold at the edge of a molly / enemy smoke instead of walking in
+        if (stateMachine.CurrentState == BotState.Moving)
+        {
+            hazardCheckTimer -= Time.deltaTime;
+            if (hazardCheckTimer <= 0f)
+            {
+                hazardCheckTimer = 0.3f;
+                UpdateHazardHold();
+            }
+            if (hazardHold) return; // agent stopped, waiting for the hazard to clear
+        }
 
         // MOVING
         if (stateMachine.CurrentState == BotState.Moving && !agent.pathPending)
@@ -156,6 +173,45 @@ public class BotController : MonoBehaviour
                 return;
             }
         }
+    }
+
+    // ===================== HAZARD AHEAD =====================
+
+    private void UpdateHazardHold()
+    {
+        bool blocked = !HazardBypass && HazardAhead();
+        if (blocked == hazardHold) return;
+        hazardHold = blocked;
+        if (agent != null && agent.isOnNavMesh)
+            agent.isStopped = hazardHold;
+    }
+
+    private bool HazardAhead()
+    {
+        var effects = GrenadeEffect.ActiveEffects;
+        if (effects.Count == 0) return false;
+
+        Vector3 moveDir = agent.velocity.sqrMagnitude > 0.25f ? agent.velocity.normalized : transform.forward;
+        moveDir.y = 0f;
+
+        for (int i = 0; i < effects.Count; i++)
+        {
+            var fx = effects[i];
+            if (fx == null || !fx.IsActive) continue;
+
+            // Mollies stop everyone; smokes only stop the side that didn't throw them
+            bool danger = fx.Type == GrenadeType.Molotov ||
+                          (fx.Type == GrenadeType.Smoke && fx.ThrowerSide != Side);
+            if (!danger) continue;
+
+            Vector3 to = fx.transform.position - transform.position;
+            to.y = 0f;
+            float dist = to.magnitude;
+            if (dist > fx.Radius + Constants.HAZARD_LOOKAHEAD) continue;
+            if (dist <= fx.Radius) continue; // already inside — AvoidMolotov handles escape
+            if (Vector3.Dot(to.normalized, moveDir) > 0.5f) return true; // it's in our path
+        }
+        return false;
     }
 
     // ===================== SEEKING =====================
@@ -249,6 +305,7 @@ public class BotController : MonoBehaviour
         transform.position = spawnPos; transform.localScale = Vector3.one;
         agent.enabled = true; agent.isStopped = true;
         IsFrozen = true; IsPlanting = false;
+        HazardBypass = false; hazardHold = false; hazardCheckTimer = 0f;
         Profile.IsAlive = true; Profile.RoundKills = 0;
         Profile.ResetCombatState(CurrentBuyType);
         stateMachine.ResetForRound();

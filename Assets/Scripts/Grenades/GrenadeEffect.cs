@@ -11,6 +11,7 @@ public enum GrenadeType { Smoke, Flash, Molotov }
 public class GrenadeEffect : MonoBehaviour
 {
     public GrenadeType Type;
+    public TeamSide ThrowerSide; // bots don't push ENEMY smokes; mollies block everyone
     public float Radius = 4f;
     public float Duration = 15f;
     public float DamagePerSecond = 30f;

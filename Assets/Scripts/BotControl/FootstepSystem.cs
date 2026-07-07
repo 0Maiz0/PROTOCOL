@@ -180,25 +180,16 @@ public class FootstepSystem : MonoBehaviour
             float hearRange = runNoiseRadius * Mathf.Lerp(0.8f, 1.3f, other.myBot.Profile.Data.gameSense / 100f);
             if (dist > hearRange) continue;
 
-            // Heard! Listener rotates toward sound
-            Vector3 dir = transform.position - other.transform.position;
-            dir.y = 0;
-            if (dir.sqrMagnitude > 1f)
-            {
-                Quaternion look = Quaternion.LookRotation(dir);
-                other.transform.rotation = Quaternion.Slerp(other.transform.rotation, look, 3f * Time.deltaTime);
-            }
+            // Heard! Stationary listeners SNAP toward the sound and scan immediately —
+            // a one-frame Slerp did nothing, which is why runners got ignored point-blank
+            bool stationary = other.stateMachine.CurrentState == BotState.Peeking ||
+                              other.stateMachine.CurrentState == BotState.Idle;
+            if (stationary && other.TryGetComponent(out EngagementSystem ears))
+                ears.AlertAt(transform.position);
 
-            // Report approximate position to team via comms
+            // Share the info with the team — feeds pre-aim (scan points) and seeking
             if (CommsManager.Instance != null)
-            {
-                float inaccuracy = Mathf.Lerp(6f, 1f, other.myBot.Profile.Data.gameSense / 100f);
-                Vector3 approxPos = transform.position + new Vector3(
-                    Random.Range(-inaccuracy, inaccuracy), 0, Random.Range(-inaccuracy, inaccuracy));
-
-                // Simple report — just rotate, don't broadcast exact coords from footsteps
-                // (only visual contact gives precise info to comms)
-            }
+                CommsManager.Instance.ReportEnemy(other.myBot, myBot);
         }
     }
 }

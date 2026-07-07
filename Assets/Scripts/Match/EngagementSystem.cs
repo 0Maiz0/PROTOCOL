@@ -30,6 +30,8 @@ public class EngagementSystem : MonoBehaviour
     private float helpCallTimer;     // Cooldown between help requests
     private bool hasCalledHelp;
     private float clutchFactor = 1f; // Hit-chance multiplier when last alive vs 2+
+    private bool burstHold;          // Pausing mid-spray to re-aim (burst discipline)
+    private float weaponCooldownUntil; // Time.time — fire interval persists across target switches
 
     private static Material tracerMaterial; // Shared — one material for all tracers
 
@@ -183,7 +185,9 @@ public class EngagementSystem : MonoBehaviour
         if (myBot.Profile.CurrentWeapon.weaponName == "AWP")
             reactionTime += 0.3f;
 
-        fireTimer = reactionTime;
+        // Respect the weapon's fire interval across target switches —
+        // an AWP can't instantly re-fire at a new target (bolt cycle)
+        fireTimer = Mathf.Max(reactionTime, weaponCooldownUntil - Time.time);
         myStateMachine.TransitionTo(BotState.Shooting);
 
         RotateToward(target.transform);
@@ -224,6 +228,23 @@ public class EngagementSystem : MonoBehaviour
         float dist = Vector3.Distance(transform.position, shooter.transform.position);
         if (dist <= myBot.Profile.CurrentWeapon.range && HasLineOfSight(shooter.transform, dist))
             StartEngagement(shooter);
+    }
+
+    /// <summary>
+    /// External sound alert (footsteps, defuse): face the position and scan immediately.
+    /// Doesn't interrupt an ongoing fight.
+    /// </summary>
+    public void AlertAt(Vector3 position)
+    {
+        if (myBot == null || myBot.Profile == null || !myBot.Profile.IsAlive || myBot.IsFrozen) return;
+        if (myStateMachine.CurrentState == BotState.Shooting ||
+            myStateMachine.CurrentState == BotState.Dead) return;
+
+        Vector3 dir = position - transform.position;
+        dir.y = 0f;
+        if (dir.sqrMagnitude > 0.01f)
+            transform.rotation = Quaternion.LookRotation(dir);
+        losCheckTimer = 0f; // scan this frame
     }
 
     private bool ShouldSeekCover()
@@ -273,11 +294,24 @@ public class EngagementSystem : MonoBehaviour
 
         if (canFire)
         {
-            fireTimer -= Time.deltaTime;
-            if (fireTimer <= 0f)
+            // Burst discipline — tap/burst like a real player instead of spraying the mag
+            if (!burstHold && myBot.Profile.SprayCounter >= Constants.BURST_SPRAY_LIMIT)
+                burstHold = true;
+            if (burstHold)
             {
-                FireAtTarget(dist);
-                fireTimer = myBot.Profile.CurrentWeapon.fireInterval;
+                myBot.Profile.DecaySpray(Time.deltaTime * 2f); // re-aiming
+                if (myBot.Profile.SprayCounter <= Constants.BURST_RESUME_SPRAY)
+                    burstHold = false;
+            }
+
+            if (!burstHold)
+            {
+                fireTimer -= Time.deltaTime;
+                if (fireTimer <= 0f)
+                {
+                    FireAtTarget(dist);
+                    fireTimer = myBot.Profile.CurrentWeapon.fireInterval;
+                }
             }
         }
     }
@@ -286,6 +320,7 @@ public class EngagementSystem : MonoBehaviour
     {
         var profile = myBot.Profile;
         if (!profile.FireShot()) return;
+        weaponCooldownUntil = Time.time + profile.CurrentWeapon.fireInterval;
 
         float movePenalty = 1f;
         if (myBot.Agent != null && !myBot.Agent.isStopped && myBot.Agent.velocity.magnitude > 0.5f)
@@ -404,6 +439,6 @@ public class EngagementSystem : MonoBehaviour
     public static void ClearAllEngagements()
     {
         foreach (var s in allSystems)
-        { s.currentTarget = null; s.disengageTimer = 0; s.fireTimer = 0; s.hasCalledHelp = false; s.clutchFactor = 1f; }
+        { s.currentTarget = null; s.disengageTimer = 0; s.fireTimer = 0; s.hasCalledHelp = false; s.clutchFactor = 1f; s.burstHold = false; s.weaponCooldownUntil = 0f; }
     }
 }

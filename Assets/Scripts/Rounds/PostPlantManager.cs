@@ -81,11 +81,19 @@ public class PostPlantManager : MonoBehaviour
         foreach (var bot in attackerBots)
         {
             if (bot == null || bot.Profile == null || !bot.Profile.IsAlive) continue;
+
+            // The defuse is LOUD: nearby Ts snap toward it and scan RIGHT NOW —
+            // previously they ran to a waypoint and calmly ignored the defuser
+            bot.HazardBypass = true; // nothing matters more than the bomb
+            if (Vector3.Distance(bot.transform.position, siteT.position) < Constants.DEFUSE_ALERT_RANGE &&
+                bot.TryGetComponent(out EngagementSystem ears))
+                ears.AlertAt(siteT.position);
+
             bot.AssignWaypoints(new Transform[] { siteT });
             bot.StartExecuting();
             count++;
         }
-        Debug.Log($"DEFUSE PEEK: {count} T bots rushing bomb!");
+        Debug.Log($"DEFUSE PEEK: {count} T bots alerted and rushing bomb!");
     }
 
     // ===================== T POST-PLANT =====================
@@ -139,7 +147,38 @@ public class PostPlantManager : MonoBehaviour
         wpCache.TryGetValue(siteWP, out Transform siteT);
         if (siteT == null) yield break;
 
-        // === RETAKE UTILITY: Flash + Smoke at site before push ===
+        // === PHASE 1: GROUP UP at approach points — no more 1-by-1 trickle ===
+        int splitAt = Mathf.Max(1, alive.Count / 2);
+        var approachOf = new Dictionary<BotController, Transform>();
+        for (int i = 0; i < alive.Count; i++)
+        {
+            Transform approach = (i < splitAt) ? (mainT ?? siteT) : (splitT ?? siteT);
+            approachOf[alive[i]] = approach;
+            alive[i].AssignWaypoints(new Transform[] { approach });
+            alive[i].StartExecuting();
+        }
+
+        float waited = 0f;
+        while (waited < Constants.RETAKE_GROUP_TIMEOUT)
+        {
+            yield return new WaitForSeconds(0.5f);
+            waited += 0.5f;
+
+            bool allGathered = true;
+            foreach (var kvp in approachOf)
+            {
+                var bot = kvp.Key;
+                if (bot == null || bot.Profile == null || !bot.Profile.IsAlive) continue;
+                if (Vector3.Distance(bot.transform.position, kvp.Value.position) > Constants.RETAKE_GROUP_RADIUS)
+                { allGathered = false; break; }
+            }
+            if (allGathered) break;
+        }
+
+        // === PHASE 2: utility, then push TOGETHER ===
+        alive = GetAlive(defenderBots);
+        if (alive.Count == 0) yield break;
+
         if (grenadeManager != null)
         {
             StrategyZone retakeZone = site == "A" ? StrategyZone.NodeA : StrategyZone.NodeB;
@@ -149,42 +188,34 @@ public class PostPlantManager : MonoBehaviour
         // Wait for utility to land
         yield return new WaitForSeconds(1.5f);
 
-        // Re-check alive
         alive = GetAlive(defenderBots);
         if (alive.Count == 0) yield break;
 
-        int splitAt = Mathf.Max(1, alive.Count / 2);
-
-        // ALL push simultaneously — approach → site (full path, no stopping at approach)
         for (int i = 0; i < alive.Count; i++)
         {
             var bot = alive[i];
             if (!bot.Profile.IsAlive) continue;
 
             // AWP check: only hold back if they ACTUALLY have an AWP weapon
-            // Eco/pistol AWPer pushes like everyone else
             bool hasActualAWP = bot.Profile.CurrentWeapon.weaponName == "AWP";
+            Transform hold = approachOf.TryGetValue(bot, out Transform ap) ? ap
+                           : ((i < splitAt) ? mainT : splitT);
 
             if (hasActualAWP && bot.Profile.AssignedRole == Role.AWPer)
             {
                 // AWP with actual AWP → hold approach angle
-                Transform hold = (i < splitAt) ? mainT : splitT;
                 if (hold != null)
                 { bot.AssignWaypoints(new Transform[] { hold }); bot.StartExecuting(); }
                 continue;
             }
 
-            // Everyone else (including AWPer with pistol): push site
-            Transform approach = (i < splitAt) ? mainT : splitT;
-            List<Transform> path = new List<Transform>();
-            if (approach != null) path.Add(approach);
-            path.Add(siteT);
-
-            bot.AssignWaypoints(path.ToArray());
+            // Everyone else pushes the site through their own utility
+            bot.HazardBypass = true;
+            bot.AssignWaypoints(new Transform[] { siteT });
             bot.StartExecuting();
         }
 
-        Debug.Log($"RETAKE: {alive.Count} CTs pushing {site} with utility!");
+        Debug.Log($"RETAKE: {alive.Count} CTs grouped at approach and pushing {site} together!");
     }
 
     private List<BotController> GetAlive(List<BotController> bots)

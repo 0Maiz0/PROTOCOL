@@ -189,7 +189,7 @@ public class FootstepSystem : MonoBehaviour
 
             // Share the info with the team — feeds pre-aim (scan points) and seeking
             if (CommsManager.Instance != null)
-                CommsManager.Instance.ReportEnemy(other.myBot, myBot);
+                CommsManager.Instance.ReportEnemy(other.myBot, myBot, heard: true);
         }
     }
 }

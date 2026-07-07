@@ -131,6 +131,7 @@ public class MidRoundPanel : MonoBehaviour
                 if (strategyExecutor != null && strategyExecutor.HasStagedBots(side))
                 {
                     StrategyZone zone = strategyExecutor.GetLastStrategyZone(side);
+                    PostIGLCall(bots, side, "EXECUTE EXECUTE — GO GO GO!");
 
                     // Throw utility FIRST
                     if (grenadeManager != null)
@@ -143,6 +144,7 @@ public class MidRoundPanel : MonoBehaviour
                 {
                     // No staged bots (Rush) — just push nearest site
                     string nearest = FindNearestSiteWP(bots);
+                    PostIGLCall(bots, side, "commit — hit the site!");
                     SendBotsToWP(bots, nearest);
 
                     if (grenadeManager != null)
@@ -155,6 +157,7 @@ public class MidRoundPanel : MonoBehaviour
 
             case MidRoundCall.Rotate:
                 string far = FindFarSiteWP(bots);
+                PostIGLCall(bots, side, "rotate — follow me, go go!");
                 SendBotsToWP(bots, far);
                 if (grenadeManager != null)
                 {
@@ -197,6 +200,17 @@ public class MidRoundPanel : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
         if (strategyExecutor != null) strategyExecutor.CommitStagedBots(side);
+    }
+
+    private void PostIGLCall(List<BotController> bots, TeamSide side, string message)
+    {
+        if (bots == null) return;
+        foreach (var b in bots)
+            if (b?.Profile != null && b.Profile.IsAlive && b.Profile.AssignedRole == Role.IGL)
+            {
+                CommsFeed.Post($"{b.Profile.Data.nickname} (IGL)", message, side);
+                return;
+            }
     }
 
     private void SendBotsToWP(List<BotController> bots, string wp)

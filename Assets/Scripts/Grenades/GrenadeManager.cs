@@ -39,9 +39,67 @@ public class GrenadeManager : MonoBehaviour
     private List<BotController> defenderBots;
     private bool ctReactiveUsed = false;
 
+    // Shared per-team nade inventory — plans and reactive utility draw from one pool
+    private int attackerNades, defenderNades;
+    private bool attackerPanicUsed, defenderPanicUsed;
+    private float panicTimer;
+
     public void SetBotReferences(List<BotController> a, List<BotController> d) { attackerBots = a; defenderBots = d; }
-    public void AllocateUtility(BuyType aB, BuyType dB) { attackerBuyType = aB; defenderBuyType = dB; }
-    public void ResetForRound() { StopAllCoroutines(); ClearAllGrenades(); ctReactiveUsed = false; }
+
+    public void AllocateUtility(BuyType aB, BuyType dB)
+    {
+        attackerBuyType = aB; defenderBuyType = dB;
+        attackerNades = GetBudget(aB); defenderNades = GetBudget(dB);
+    }
+
+    public void ResetForRound()
+    {
+        StopAllCoroutines(); ClearAllGrenades();
+        ctReactiveUsed = false;
+        attackerPanicUsed = false; defenderPanicUsed = false;
+    }
+
+    private bool TrySpendNade(TeamSide side)
+    {
+        if (side == TeamSide.Attacker)
+        {
+            if (attackerNades <= 0) return false;
+            attackerNades--; return true;
+        }
+        if (defenderNades <= 0) return false;
+        defenderNades--; return true;
+    }
+
+    // ===================== PANIC SMOKE =====================
+
+    private void Update()
+    {
+        panicTimer -= Time.deltaTime;
+        if (panicTimer > 0f) return;
+        panicTimer = 1f;
+        CheckPanicSmoke(attackerBots, TeamSide.Attacker, ref attackerPanicUsed);
+        CheckPanicSmoke(defenderBots, TeamSide.Defender, ref defenderPanicUsed);
+    }
+
+    /// <summary>
+    /// A hurt, outnumbered player smokes themselves off to break the crossfire —
+    /// the "smoke under yourself while being executed" play. Once per team per round.
+    /// </summary>
+    private void CheckPanicSmoke(List<BotController> bots, TeamSide side, ref bool used)
+    {
+        if (used || bots == null || CommsManager.Instance == null) return;
+        foreach (var b in bots)
+        {
+            if (b?.Profile == null || !b.Profile.IsAlive || b.IsFrozen) continue;
+            if (b.Profile.HP > Constants.PANIC_SMOKE_HP) continue;
+            if (CommsManager.Instance.CountKnownEnemiesNear(side, b.transform.position, 20f) < 2) continue;
+
+            used = true;
+            CommsFeed.Post(b.Profile.Data.nickname, "smoking myself off!", side);
+            StartCoroutine(ThrowGrenade(b, GrenadeType.Smoke, b.transform.position - b.transform.forward * 1f));
+            return;
+        }
+    }
 
     // ===================== API =====================
 
@@ -132,10 +190,14 @@ public class GrenadeManager : MonoBehaviour
             yield return StartCoroutine(ThrowGrenade(smoker, GrenadeType.Smoke, GetWP(rotCut)));
             yield return new WaitForSeconds(utilitySpacing);
         }
-        // 2. Molly hold spot
+        // 2. Molly the hold spot — or the KNOWN camper if comms has one near the site
         if (budget >= 2 && mollyer != null)
         {
-            yield return StartCoroutine(ThrowGrenade(mollyer, GrenadeType.Molotov, GetWP(holdSpot)));
+            Vector3 mollyTarget = GetWP(holdSpot);
+            if (CommsManager.Instance != null &&
+                CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, GetWP(site), 14f, out Vector3 camper))
+                mollyTarget = camper;
+            yield return StartCoroutine(ThrowGrenade(mollyer, GrenadeType.Molotov, mollyTarget));
             yield return new WaitForSeconds(utilitySpacing);
         }
         // 3. Flash site
@@ -253,11 +315,15 @@ public class GrenadeManager : MonoBehaviour
             yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Smoke, GetWP(chokeWP)));
         }
 
-        // Molly the site to flush T
+        // Molly to flush the T — at their KNOWN position if comms has one (behind the box!)
         if (budget >= 3)
         {
             yield return new WaitForSeconds(utilitySpacing);
-            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Molotov, GetWP(siteWP)));
+            Vector3 flushTarget = GetWP(siteWP);
+            if (CommsManager.Instance != null &&
+                CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Defender, GetWP(siteWP), 14f, out Vector3 camper))
+                flushTarget = camper;
+            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Molotov, flushTarget));
         }
 
         Debug.Log($"RETAKE UTILITY: {budget} nades thrown at {zone}");
@@ -273,6 +339,7 @@ public class GrenadeManager : MonoBehaviour
     {
         if (thrower == null || !thrower.Profile.IsAlive || target == Vector3.zero)
             yield break;
+        if (!TrySpendNade(thrower.Side)) yield break; // shared team inventory
 
         TeamSide throwerSide = thrower.Side; // capture — thrower can die mid-flight
         Vector3 start = thrower.transform.position + Vector3.up * 1.5f;

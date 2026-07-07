@@ -60,6 +60,9 @@ public class EngagementSystem : MonoBehaviour
         if (myBot.Profile.IsReloading)
         {
             myBot.Profile.TickReload(Time.deltaTime);
+            // Reloading bots used to be completely blind (early return before any scan)
+            // — THE "two bots circle each other doing nothing" bug. Back off instead.
+            ReloadRetreat();
             return;
         }
 
@@ -131,6 +134,7 @@ public class EngagementSystem : MonoBehaviour
     private void CheckCommsForAction()
     {
         if (CommsManager.Instance == null) return;
+        if (myBot.HoldForCommit) return; // staged for execute — hold the spot
 
         // Priority 1: Teammate needs help nearby
         if (CommsManager.Instance.GetNearbyHelpRequest(myBot, out Vector3 helpPos))
@@ -417,6 +421,42 @@ public class EngagementSystem : MonoBehaviour
         losCheckTimer = 0.1f;
     }
 
+    private float reloadRetreatTimer;
+
+    /// <summary>
+    /// Enemy close while the mag is out → jiggle away like a human would,
+    /// instead of blindly continuing the old path in circles.
+    /// </summary>
+    private void ReloadRetreat()
+    {
+        reloadRetreatTimer -= Time.deltaTime;
+        if (reloadRetreatTimer > 0f) return;
+        reloadRetreatTimer = 0.5f;
+
+        BotController threat = null;
+        float best = float.MaxValue;
+        foreach (var s in allSystems)
+        {
+            if (s == this || s.myBot == null || s.myBot.Profile == null) continue;
+            if (s.myBot.Side == myBot.Side || !s.myBot.Profile.IsAlive) continue;
+            float d = Vector3.Distance(transform.position, s.transform.position);
+            if (d < Constants.RELOAD_RETREAT_RANGE && d < best) { best = d; threat = s.myBot; }
+        }
+        if (threat == null) return;
+
+        var agent = myBot.Agent;
+        if (agent == null || !agent.isOnNavMesh) return;
+
+        if (myStateMachine.CurrentState != BotState.Moving)
+            myStateMachine.TransitionTo(BotState.Moving); // transition FIRST — it may reassign paths
+
+        Vector3 away = (transform.position - threat.transform.position).normalized;
+        away.y = 0f;
+        agent.isStopped = false;
+        agent.speed = Constants.BOT_MOVE_SPEED;
+        agent.SetDestination(transform.position + away * 6f);
+    }
+
     private void Disengage()
     {
         currentTarget = null;
@@ -470,7 +510,14 @@ public class EngagementSystem : MonoBehaviour
     {
         Vector3 start = shooter.position + Vector3.up * 0.5f;
         Vector3 end = target.position + Vector3.up * 0.5f;
-		end += Vector3.Scale(Random.insideUnitSphere * 1.5f, new Vector3(1f, 0.3f, 1f));
+        // Hits trace TO the target; misses visibly whiff wide — the old ±1.5m offset
+        // on every tracer made hits read as misses
+        if (!isHit)
+        {
+            Vector3 side = Vector3.Cross((end - start).normalized, Vector3.up);
+            end += side * (Random.Range(1.2f, 2.8f) * (Random.value < 0.5f ? -1f : 1f))
+                 + Vector3.up * Random.Range(-0.3f, 0.9f);
+        }
 
 		GameObject obj = new GameObject("Tracer");
         LineRenderer lr = obj.AddComponent<LineRenderer>();

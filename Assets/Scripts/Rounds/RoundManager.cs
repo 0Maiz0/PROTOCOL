@@ -17,6 +17,7 @@ public class RoundManager : MonoBehaviour
 	[SerializeField] private GrenadeManager grenadeManager;
 	[SerializeField] private CommsManager commsManager;
 	[SerializeField] private PlayerHUD playerHUD;
+	[SerializeField] private IGLBrain iglBrain;
 
 	[Header("Spawn Points")]
 	[SerializeField] private Transform[] attackerSpawns = new Transform[5];
@@ -79,6 +80,10 @@ public class RoundManager : MonoBehaviour
 		if (commsManager == null) commsManager = GetComponent<CommsManager>();
 		if (commsManager == null) commsManager = FindObjectOfType<CommsManager>();
 		if (playerHUD == null) playerHUD = FindObjectOfType<PlayerHUD>();
+		if (iglBrain == null) iglBrain = GetComponent<IGLBrain>();
+		if (iglBrain == null) iglBrain = gameObject.AddComponent<IGLBrain>();
+		if (FindObjectOfType<CommsFeed>() == null) gameObject.AddComponent<CommsFeed>();
+		CommsFeed.SetPlayerSide(State.playerTeamSide);
 
 		if (attackerEquipment == null) attackerEquipment = ScriptableObject.CreateInstance<EquipmentBonuses>();
 		if (defenderEquipment == null) defenderEquipment = ScriptableObject.CreateInstance<EquipmentBonuses>();
@@ -161,6 +166,8 @@ public class RoundManager : MonoBehaviour
 		if (postPlantManager != null) postPlantManager.ResetForRound();
 		if (grenadeManager != null) grenadeManager.ResetForRound();
 		if (commsManager != null) commsManager.ResetForRound();
+		CommsFeed.Clear();
+		if (bombManager != null) bombManager.AssignCarrier(attackerBots);
 		// AI side commits its buy now; the coach picks the player side's tier in the panel
 		economy.PrepareBuyPhase(State.playerTeamSide);
 
@@ -203,6 +210,10 @@ public class RoundManager : MonoBehaviour
 			if (grenadeManager != null) grenadeManager.OnStrategyExecuted(selectedStrategy, State.playerTeamSide);
 		}
 
+		if (iglBrain != null)
+			iglBrain.SetTeam((State.playerTeamSide == TeamSide.Attacker) ? attackerBots : defenderBots,
+				State.playerTeamSide);
+
 		StrategyData aiStrategy = null;
 		if (aiCoach != null)
 		{
@@ -224,7 +235,7 @@ public class RoundManager : MonoBehaviour
 		UpdateAliveCounts();
 		bool bombPlanted = bombManager != null && bombManager.IsPlanted;
 
-		if (midRoundPanel != null && !bombPlanted)
+		if (midRoundPanel != null && !bombPlanted && !PlayerAlreadyExecuting())
 		{
 			var playerBots = (State.playerTeamSide == TeamSide.Attacker) ? attackerBots : defenderBots;
 			int friendly = (State.playerTeamSide == TeamSide.Attacker) ? attackersAlive : defendersAlive;
@@ -311,6 +322,27 @@ public class RoundManager : MonoBehaviour
 
 	// ===================== HALFTIME =====================
 
+	/// <summary>
+	/// Most of the team is already standing on a site — asking "commit or rotate?"
+	/// mid-execute is noise, skip the panel.
+	/// </summary>
+	private bool PlayerAlreadyExecuting()
+	{
+		if (State.playerTeamSide != TeamSide.Attacker) return false; // CT calls stay relevant
+		GameObject a = GameObject.Find("WP_NodeA"), b = GameObject.Find("WP_NodeB");
+		int alive = 0, onSite = 0;
+		foreach (var bot in attackerBots)
+		{
+			if (bot?.Profile == null || !bot.Profile.IsAlive) continue;
+			alive++;
+			Vector3 p = bot.transform.position;
+			if ((a != null && Vector3.Distance(p, a.transform.position) < Constants.SITE_EXECUTE_RADIUS) ||
+			    (b != null && Vector3.Distance(p, b.transform.position) < Constants.SITE_EXECUTE_RADIUS))
+				onSite++;
+		}
+		return alive > 0 && onSite >= Mathf.Max(2, alive - 1);
+	}
+
 	private void SwapSidesAtHalftime()
 	{
 		(attackerBots, defenderBots) = (defenderBots, attackerBots);
@@ -322,6 +354,7 @@ public class RoundManager : MonoBehaviour
 		if (economy != null) economy.SwapSides();
 		if (matchHUD != null) matchHUD.playerTeamSide = State.playerTeamSide;
 		if (playerHUD != null) playerHUD.playerTeamSide = State.playerTeamSide;
+		CommsFeed.SetPlayerSide(State.playerTeamSide);
 		if (postPlantManager != null) postPlantManager.SetBotReferences(attackerBots, defenderBots);
 		if (grenadeManager != null) grenadeManager.SetBotReferences(attackerBots, defenderBots);
 	}

@@ -70,7 +70,7 @@ public class CommsManager : MonoBehaviour
     /// <summary>
     /// Bot reports seeing an enemy. Info quality depends on Communication stat.
     /// </summary>
-    public void ReportEnemy(BotController spotter, BotController enemy)
+    public void ReportEnemy(BotController spotter, BotController enemy, bool heard = false)
     {
         if (spotter.Profile == null || enemy.Profile == null) return;
 
@@ -81,7 +81,13 @@ public class CommsManager : MonoBehaviour
         Vector3 reportedPos = enemy.transform.position +
             new Vector3(Random.Range(-inaccuracy, inaccuracy), 0, Random.Range(-inaccuracy, inaccuracy));
 
-        var info = new EnemyInfo
+        var dict = (spotter.Side == TeamSide.Attacker) ? attackerKnownEnemies : defenderKnownEnemies;
+
+        // Fresh info (not a refresh of something already known) → voice it in the feed
+        bool isNew = !dict.TryGetValue(enemy.GetInstanceID(), out EnemyInfo prev) ||
+                     Time.time - prev.timeSpotted > INFO_DECAY;
+
+        dict[enemy.GetInstanceID()] = new EnemyInfo
         {
             lastPosition = reportedPos,
             timeSpotted = Time.time,
@@ -89,8 +95,10 @@ public class CommsManager : MonoBehaviour
             enemyID = enemy.GetInstanceID()
         };
 
-        var dict = (spotter.Side == TeamSide.Attacker) ? attackerKnownEnemies : defenderKnownEnemies;
-        dict[enemy.GetInstanceID()] = info;
+        if (isNew)
+            CommsFeed.Post(spotter.Profile.Data.nickname,
+                heard ? "hearing someone close!" : $"contact — {enemy.Profile.Data.nickname} spotted!",
+                spotter.Side);
     }
 
     /// <summary>
@@ -115,6 +123,8 @@ public class CommsManager : MonoBehaviour
     public void RequestHelp(BotController bot)
     {
         if (bot.Profile == null || !bot.Profile.IsAlive) return;
+
+        CommsFeed.Post(bot.Profile.Data.nickname, "taking damage — need help!", bot.Side);
 
         var request = new HelpRequest
         {
@@ -202,6 +212,26 @@ public class CommsManager : MonoBehaviour
 
     public bool AnyKnownEnemyNear(TeamSide side, Vector3 pos, float range)
         => CountKnownEnemiesNear(side, pos, range) > 0;
+
+    /// <summary>
+    /// Nearest known enemy position within range of a point — lets utility
+    /// target the KNOWN camper instead of a fixed guess spot.
+    /// </summary>
+    public bool TryGetKnownEnemyNear(TeamSide side, Vector3 pos, float range, out Vector3 enemyPos)
+    {
+        enemyPos = Vector3.zero;
+        var dict = (side == TeamSide.Attacker) ? attackerKnownEnemies : defenderKnownEnemies;
+        float best = float.MaxValue;
+        bool found = false;
+        foreach (var kvp in dict)
+        {
+            if (!kvp.Value.isAlive) continue;
+            if (Time.time - kvp.Value.timeSpotted > INFO_DECAY) continue;
+            float d = Vector3.Distance(pos, kvp.Value.lastPosition);
+            if (d <= range && d < best) { best = d; enemyPos = kvp.Value.lastPosition; found = true; }
+        }
+        return found;
+    }
 
     /// <summary>
     /// How many alive enemies does this team know about?

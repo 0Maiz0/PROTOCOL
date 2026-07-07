@@ -103,6 +103,7 @@ public class StrategyExecutor : MonoBehaviour
 
                 bots[i].AssignWaypoints(stagingPath);
                 bots[i].StartExecuting();
+                bots[i].HoldForCommit = true; // no comms-wandering off the staging spot
 
                 // Save remaining path for commit
                 group.bots.Add(bots[i]);

@@ -170,6 +170,9 @@ public class PlayerProfile
         float damage = weapon.damage * distMultiplier * variance;
 
         float hsChance = Constants.HEADSHOT_BASE_CHANCE + (EffectiveAim / 100f) * Constants.HEADSHOT_AIM_SCALE;
+        // The opening shot is aimed head-level — the classic hold one-tap
+        if (SprayCounter <= CurrentWeapon.sprayGrowth + 0.001f)
+            hsChance *= Constants.FIRST_BULLET_HS_MULT;
         headshot = Random.value < hsChance;
         if (headshot) damage *= Constants.HEADSHOT_MULTIPLIER;
 

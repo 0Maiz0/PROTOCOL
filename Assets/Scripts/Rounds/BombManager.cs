@@ -42,16 +42,65 @@ public class BombManager : MonoBehaviour
     private bool isDefusing = false;
     private BotController currentPlanter = null;
 
+    // Bomb carrier — only the carrier can plant. Dies → bomb drops, must be picked up.
+    private BotController bombCarrier = null;
+    private bool bombDropped = false;
+    private Vector3 droppedPos;
+    private GameObject bombMarker;
+    private float nextFetchOrder;
+
+    public BotController Carrier => bombCarrier;
+
     public void ResetForRound()
     {
         bombState = BombState.NotPlanted;
         currentTimer = 0f; plantedSite = "";
         plantProgress = 0f; defuseProgress = 0f;
         isPlanting = false; isDefusing = false;
+        bombCarrier = null; bombDropped = false;
+        DestroyMarker();
 
         // Release planter lock
         if (currentPlanter != null)
         { currentPlanter.IsPlanting = false; currentPlanter = null; }
+    }
+
+    /// <summary>
+    /// Assign the bomb at freeze time. Support carries by default (mid-pack),
+    /// so the entry can frag freely — falls back to any alive attacker.
+    /// </summary>
+    public void AssignCarrier(List<BotController> attackers)
+    {
+        bombCarrier = null;
+        bombDropped = false;
+        DestroyMarker();
+        foreach (var b in attackers)
+            if (b?.Profile != null && b.Profile.IsAlive && b.Profile.AssignedRole == Role.Support)
+            { bombCarrier = b; break; }
+        if (bombCarrier == null)
+            foreach (var b in attackers)
+                if (b?.Profile != null && b.Profile.IsAlive) { bombCarrier = b; break; }
+
+        if (bombCarrier != null)
+            CommsFeed.Post(bombCarrier.Profile.Data.nickname, "I've got the bomb", TeamSide.Attacker);
+    }
+
+    private void CreateBombMarker()
+    {
+        DestroyMarker();
+        bombMarker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        bombMarker.name = "DroppedBomb";
+        bombMarker.transform.position = droppedPos + Vector3.up * 0.2f;
+        bombMarker.transform.localScale = new Vector3(0.4f, 0.25f, 0.3f);
+        var col = bombMarker.GetComponent<Collider>();
+        if (col != null) Destroy(col);
+        var r = bombMarker.GetComponent<Renderer>();
+        if (r != null) { var m = new Material(Shader.Find("Sprites/Default")); m.color = Color.red; r.material = m; }
+    }
+
+    private void DestroyMarker()
+    {
+        if (bombMarker != null) { Destroy(bombMarker); bombMarker = null; }
     }
 
     private void Update()
@@ -72,34 +121,70 @@ public class BombManager : MonoBehaviour
     {
         if (bombState != BombState.NotPlanted) return;
 
-        BotController planter = null;
+        // Carrier down? Bomb is on the ground — nearest T fetches it
+        if (bombCarrier == null || bombCarrier.Profile == null || !bombCarrier.Profile.IsAlive)
+            HandleDroppedBomb(attackerBots);
+
+        if (bombCarrier == null || bombCarrier.Profile == null || !bombCarrier.Profile.IsAlive)
+            return;
+
+        // ONLY the carrier plants — and only at the site they're actually standing in
         BombSite targetSite = null;
+        if (siteA != null && siteA.IsPlayerInSite(bombCarrier.transform.position)) targetSite = siteA;
+        else if (siteB != null && siteB.IsPlayerInSite(bombCarrier.transform.position)) targetSite = siteB;
 
-        foreach (var bot in attackerBots)
+        if (targetSite != null)
         {
-            if (bot == null || bot.Profile == null || !bot.Profile.IsAlive) continue;
+            ProcessPlant(bombCarrier, targetSite);
+        }
+        else if (isPlanting)
+        {
+            if (currentPlanter != null)
+            { currentPlanter.IsPlanting = false; currentPlanter = null; }
+            isPlanting = false;
+            plantProgress = 0f;
+        }
+    }
 
-            if (siteA != null && siteA.IsPlayerInSite(bot.transform.position))
-            { planter = bot; targetSite = siteA; break; }
-
-            if (siteB != null && siteB.IsPlayerInSite(bot.transform.position))
-            { planter = bot; targetSite = siteB; break; }
+    private void HandleDroppedBomb(List<BotController> attackers)
+    {
+        if (!bombDropped)
+        {
+            if (bombCarrier == null) return; // standalone testing — no carrier assigned
+            droppedPos = bombCarrier.transform.position;
+            bombDropped = true;
+            bombCarrier = null;
+            CreateBombMarker();
+            CommsFeed.PostSystem("BOMB DOWN!");
+            Debug.Log("BOMB: carrier died — bomb dropped");
+            return;
         }
 
-        if (planter != null && targetSite != null)
+        // Find the nearest alive T — pick up if close, otherwise send them to fetch
+        BotController nearest = null;
+        float best = float.MaxValue;
+        foreach (var b in attackers)
         {
-            ProcessPlant(planter, targetSite);
+            if (b?.Profile == null || !b.Profile.IsAlive) continue;
+            float d = Vector3.Distance(b.transform.position, droppedPos);
+            if (d < best) { best = d; nearest = b; }
         }
-        else
+        if (nearest == null) return;
+
+        if (best < Constants.BOMB_PICKUP_RANGE)
         {
-            // Nobody on site — reset
-            if (isPlanting)
-            {
-                if (currentPlanter != null)
-                { currentPlanter.IsPlanting = false; currentPlanter = null; }
-                isPlanting = false;
-                plantProgress = 0f;
-            }
+            bombCarrier = nearest;
+            bombDropped = false;
+            DestroyMarker();
+            CommsFeed.Post(nearest.Profile.Data.nickname, "got the bomb!", TeamSide.Attacker);
+            return;
+        }
+
+        if (Time.time >= nextFetchOrder && bombMarker != null)
+        {
+            nextFetchOrder = Time.time + 2f;
+            nearest.AssignWaypoints(new Transform[] { bombMarker.transform });
+            nearest.StartExecuting();
         }
     }
 
@@ -121,6 +206,7 @@ public class BombManager : MonoBehaviour
             var agent = planter.GetComponent<UnityEngine.AI.NavMeshAgent>();
             if (agent != null) { agent.isStopped = true; agent.ResetPath(); }
 
+            CommsFeed.Post(planter.Profile.Data.nickname, $"planting the bomb on {site.siteName}!", TeamSide.Attacker);
             Debug.Log($"PLANTING on {site.siteName}... (bot stopped)");
         }
 

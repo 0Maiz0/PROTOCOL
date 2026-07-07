@@ -77,10 +77,17 @@ public class PostPlantManager : MonoBehaviour
         defusePeekActive = true;
 
         if (!wpCache.TryGetValue(plantedSite == "A" ? "WP_NodeA" : "WP_NodeB", out Transform siteT)) return;
+        bool alarmVoiced = false;
         int count = 0;
         foreach (var bot in attackerBots)
         {
             if (bot == null || bot.Profile == null || !bot.Profile.IsAlive) continue;
+
+            if (!alarmVoiced)
+            {
+                alarmVoiced = true;
+                CommsFeed.Post(bot.Profile.Data.nickname, "he's on the bomb — GO GO GO!", TeamSide.Attacker);
+            }
 
             // The defuse is LOUD: nearby Ts snap toward it and scan RIGHT NOW —
             // previously they ran to a waypoint and calmly ignored the defuser

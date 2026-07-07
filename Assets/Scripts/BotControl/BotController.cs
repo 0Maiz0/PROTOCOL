@@ -16,6 +16,7 @@ public class BotController : MonoBehaviour
     public bool IsFrozen { get; set; } = true;
     public bool IsPlanting { get; set; } = false; // Set by BombManager
     public bool HazardBypass { get; set; } = false; // Urgent pushes (retake, defuse peek) ignore smoke/molly holds
+    public bool HoldForCommit { get; set; } = false; // Staged for execute — no comms-wandering off position
 
     private Transform[] currentWaypoints;
     private int waypointIndex;
@@ -57,7 +58,8 @@ public class BotController : MonoBehaviour
     public void SetLoadout(WeaponData.WeaponStats weapon, BuyType tier)
     { CurrentBuyType = tier; if (Profile != null) Profile.ResetCombatState(weapon); }
 
-    public void AssignWaypoints(Transform[] wp) { currentWaypoints = wp; waypointIndex = 0; isSeekingTarget = false; }
+    public void AssignWaypoints(Transform[] wp)
+    { currentWaypoints = wp; waypointIndex = 0; isSeekingTarget = false; HoldForCommit = false; }
 
     public void StartExecuting()
     {
@@ -224,6 +226,7 @@ public class BotController : MonoBehaviour
     private void TrySeekFromComms()
     {
         if (CommsManager.Instance == null) return;
+        if (HoldForCommit) return; // staged for execute — hold position, wait for the call
         if (Profile.AssignedRole == Role.AWPer) return;
 
         if (CommsManager.Instance.GetNearbyHelpRequest(this, out Vector3 helpPos))
@@ -310,7 +313,7 @@ public class BotController : MonoBehaviour
         transform.position = spawnPos; transform.localScale = Vector3.one;
         agent.enabled = true; agent.isStopped = true;
         IsFrozen = true; IsPlanting = false;
-        HazardBypass = false; hazardHold = false; hazardCheckTimer = 0f;
+        HazardBypass = false; HoldForCommit = false; hazardHold = false; hazardCheckTimer = 0f;
         Profile.IsAlive = true; Profile.RoundKills = 0;
         Profile.ResetCombatState(CurrentBuyType);
         stateMachine.ResetForRound();

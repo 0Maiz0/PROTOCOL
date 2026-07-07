@@ -94,6 +94,13 @@ public static class Constants
     public const float SWEEP_ARC_LOW_GS = 80f;
     public const float SWEEP_ARC_HIGH_GS = 30f;
 
+    // Playtest #4: bomb carrier, reload retreat, one-taps, panic utility
+    public const float BOMB_PICKUP_RANGE = 2.5f;
+    public const float RELOAD_RETREAT_RANGE = 14f;  // enemy this close while reloading → back off
+    public const float FIRST_BULLET_HS_MULT = 2f;   // opening shot is aimed head-level
+    public const float PANIC_SMOKE_HP = 50f;        // below this + outnumbered → self-smoke
+    public const float SITE_EXECUTE_RADIUS = 14f;   // bots inside this of a site = already executing
+
     // Utility timing (playtest #2)
     public const float UTIL_THROW_RANGE = 25f;    // rush smoke thrown when pack is this close
     public const float UTIL_JIT_TIMEOUT = 20f;    // give up waiting and throw anyway

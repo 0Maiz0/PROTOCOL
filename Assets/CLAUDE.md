@@ -67,6 +67,8 @@ Match engine is built and playable. Two coaching phases work (opening call + mid
 | `HomeHub.cs` | Tabbed management hub (Calendar/Roster/Scouting/Shop/Budget), IMGUI |
 | `SaveSystem.cs` | JSON career save/load (CareerSaveData) in persistentDataPath |
 | `MatchRecord.cs` | One career match result — part of the save |
+| `CommsFeed.cs` | On-screen team voice feed (player team only) — tuning window into bot decisions |
+| `IGLBrain.cs` | Player-team IGL reads comms intel, calls site stacks in the feed (Leadership-scaled) |
 
 ## Map: Nexus (Template Map)
 

@@ -2,11 +2,12 @@
 
 When editing match engine code (RoundManager, BotController, EngagementSystem, DuelResolver, BotStateMachine, StrategyExecutor, BombManager, MatchEconomy, MatchState):
 
-## Round Flow
-- Freeze → Coach picks strategy → Live → Mid-round call → Late-round call → Round end → Post-round delay → Next round
+## Round Flow (control rework 2026-07-08: the team plays, the coach watches)
+- Freeze: IGL calls buy + strategy from TeamProtocols; coach intervenes ONLY via tactical timeout (3/match, T key) which opens the old CoachPanel for one round
+- Live: IGLBrain commits executes (utility first) and rotates the defense; bomb carrier (Support) is the only one who can plant; drops on death
 - `RoundPhase` enum controls phase: FreezeTime, Live, PostRound
-- Round timer starts at `ROUND_TIME` (90s), mid-round trigger at 20s in, late-round at 60s in
 - Match is first to 13 rounds, halftime at round 12 with full side swap
+- NEVER reintroduce per-round coach micromanagement — core design identity
 
 ## Bot Behavior
 - Bots follow waypoint paths from `StrategyData` ScriptableObjects
@@ -34,7 +35,8 @@ When editing match engine code (RoundManager, BotController, EngagementSystem, D
   - Fake = noise on one site, rotate to other
   - Control = take map area, hold, wait for mid-round decision
   - Default = spread across map, gather info
-- Axis Control shows "HIT A" / "HIT B" in mid-round panel, not generic "commit"
+- Flashes BLIND (PlayerProfile.BlindUntil): no scanning/firing/turning while flashed
+- MapGenerator (Assets/Scripts/Map) builds seeded arenas with the fixed Nexus callout graph — strategies stay valid on generated maps
 
 ## Economy
 - CS-style loss bonus escalation resets on win

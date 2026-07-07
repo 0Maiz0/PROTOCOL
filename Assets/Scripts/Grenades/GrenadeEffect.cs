@@ -110,6 +110,16 @@ public class GrenadeEffect : MonoBehaviour
             if (strength > 0.1f)
             {
                 bot.Profile.SprayCounter += strength * 0.8f;
+
+                // ACTUAL blinding — a flashed player can't scan, fire or turn to fight.
+                // (Previously flashes only nudged spray, which is why they "did nothing".)
+                if (strength >= Constants.FLASH_BLIND_THRESHOLD)
+                {
+                    float blind = strength * Constants.FLASH_MAX_BLIND;
+                    bot.Profile.BlindUntil = Mathf.Max(bot.Profile.BlindUntil, Time.time + blind);
+                    if (blind > 1.2f)
+                        CommsFeed.Post(bot.Profile.Data.nickname, "I'm FLASHED — can't see!", bot.Side);
+                }
                 count++;
             }
         }

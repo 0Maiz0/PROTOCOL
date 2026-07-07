@@ -42,6 +42,7 @@ public class GrenadeManager : MonoBehaviour
     // Shared per-team nade inventory — plans and reactive utility draw from one pool
     private int attackerNades, defenderNades;
     private bool attackerPanicUsed, defenderPanicUsed;
+    private bool attackerClutchFlashUsed, defenderClutchFlashUsed;
     private float panicTimer;
 
     public void SetBotReferences(List<BotController> a, List<BotController> d) { attackerBots = a; defenderBots = d; }
@@ -57,6 +58,7 @@ public class GrenadeManager : MonoBehaviour
         StopAllCoroutines(); ClearAllGrenades();
         ctReactiveUsed = false;
         attackerPanicUsed = false; defenderPanicUsed = false;
+        attackerClutchFlashUsed = false; defenderClutchFlashUsed = false;
     }
 
     private bool TrySpendNade(TeamSide side)
@@ -79,6 +81,44 @@ public class GrenadeManager : MonoBehaviour
         panicTimer = 1f;
         CheckPanicSmoke(attackerBots, TeamSide.Attacker, ref attackerPanicUsed);
         CheckPanicSmoke(defenderBots, TeamSide.Defender, ref defenderPanicUsed);
+        CheckClutchFlash(attackerBots, defenderBots, TeamSide.Attacker, ref attackerClutchFlashUsed);
+        CheckClutchFlash(defenderBots, attackerBots, TeamSide.Defender, ref defenderClutchFlashUsed);
+    }
+
+    /// <summary>
+    /// The clutch play: last man alive flashes the KNOWN enemy position and
+    /// peeks off the pop — not a blind toss at a map point. Once per round.
+    /// </summary>
+    private void CheckClutchFlash(List<BotController> mine, List<BotController> enemies, TeamSide side, ref bool used)
+    {
+        if (used || mine == null || enemies == null || CommsManager.Instance == null) return;
+
+        BotController clutcher = null;
+        int aliveMine = 0;
+        foreach (var b in mine)
+            if (b?.Profile != null && b.Profile.IsAlive) { aliveMine++; clutcher = b; }
+        if (aliveMine != 1 || clutcher == null || clutcher.IsFrozen) return;
+
+        int aliveEnemies = 0;
+        foreach (var e in enemies)
+            if (e?.Profile != null && e.Profile.IsAlive) aliveEnemies++;
+        if (aliveEnemies < 2) return;
+
+        if (!CommsManager.Instance.TryGetKnownEnemyNear(side, clutcher.transform.position, 25f, out Vector3 knownPos))
+            return;
+
+        used = true;
+        CommsFeed.Post(clutcher.Profile.Data.nickname, "flash out — peeking off it!", side);
+        StartCoroutine(ClutchFlashPeek(clutcher, knownPos));
+    }
+
+    private IEnumerator ClutchFlashPeek(BotController clutcher, Vector3 enemyPos)
+    {
+        yield return StartCoroutine(ThrowGrenade(clutcher, GrenadeType.Flash, enemyPos));
+        // Flash popped — swing onto the blinded angle
+        if (clutcher != null && clutcher.Profile != null && clutcher.Profile.IsAlive &&
+            clutcher.TryGetComponent(out EngagementSystem eyes))
+            eyes.AlertAt(enemyPos);
     }
 
     /// <summary>
@@ -200,16 +240,20 @@ public class GrenadeManager : MonoBehaviour
             yield return StartCoroutine(ThrowGrenade(mollyer, GrenadeType.Molotov, mollyTarget));
             yield return new WaitForSeconds(utilitySpacing);
         }
-        // 3. Flash site
+        // 3. Flash site — at the KNOWN holder if comms has one
+        Vector3 siteFlash = GetWP(site);
+        if (CommsManager.Instance != null &&
+            CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, GetWP(site), 14f, out Vector3 knownCT))
+            siteFlash = knownCT;
         if (budget >= 3 && flasher != null)
         {
-            yield return StartCoroutine(ThrowGrenade(flasher, GrenadeType.Flash, GetWP(site)));
+            yield return StartCoroutine(ThrowGrenade(flasher, GrenadeType.Flash, siteFlash));
             yield return new WaitForSeconds(0.3f);
         }
         // 4. Pop flash
         if (budget >= 4 && flasher != null)
         {
-            yield return StartCoroutine(ThrowGrenade(flasher, GrenadeType.Flash, GetWP(site)));
+            yield return StartCoroutine(ThrowGrenade(flasher, GrenadeType.Flash, siteFlash));
         }
     }
 
@@ -239,6 +283,10 @@ public class GrenadeManager : MonoBehaviour
                 {
                     Debug.Log($"CT DENIAL: enemies heard at {chokeName} — molly incoming!");
                     yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Molotov, choke));
+                    // Molly down — pre-aim the choke and punish whoever pushes through
+                    if (thrower.Profile != null && thrower.Profile.IsAlive &&
+                        thrower.TryGetComponent(out EngagementSystem eyes))
+                        eyes.AlertAt(choke);
                 }
                 yield break;
             }
@@ -302,10 +350,14 @@ public class GrenadeManager : MonoBehaviour
 
         if (thrower == null) yield break;
 
-        // Flash the site first
+        // Flash the site first — at the KNOWN defender if comms has one
         if (budget >= 1)
         {
-            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Flash, GetWP(siteWP)));
+            Vector3 flashTarget = GetWP(siteWP);
+            if (CommsManager.Instance != null &&
+                CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Defender, GetWP(siteWP), 14f, out Vector3 knownT))
+                flashTarget = knownT;
+            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Flash, flashTarget));
             yield return new WaitForSeconds(0.3f);
         }
 

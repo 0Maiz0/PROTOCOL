@@ -98,6 +98,10 @@ public static class Constants
     public const int TIMEOUTS_PER_MATCH = 3;
     public const float AUTO_FREEZE_TIME = 3f; // freeze length when the IGL calls the round
 
+    // Flash blinding (playtest #5) — flashes previously only nudged spray
+    public const float FLASH_MAX_BLIND = 2.8f;       // full face-flash blind duration
+    public const float FLASH_BLIND_THRESHOLD = 0.35f; // min strength that actually blinds
+
     // Playtest #4: bomb carrier, reload retreat, one-taps, panic utility
     public const float BOMB_PICKUP_RANGE = 2.5f;
     public const float RELOAD_RETREAT_RANGE = 14f;  // enemy this close while reloading → back off

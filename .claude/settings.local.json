@@ -12,7 +12,8 @@
       "Bash(git commit --quiet -m 'Playtest #3: crosshair placement model — duels decided before the trigger *)",
       "Bash(git commit --quiet -m 'Playtest #4: bomb carrier, comms feed, IGL brain, reload retreat, honest tracers *)",
       "Bash(git commit --quiet -m 'Control rework: the team plays, the coach watches — protocols, IGL calls, 3 timeouts *)",
-      "Bash(git commit --quiet -m 'Docs: core identity pivot in CLAUDE.md — build the team, the match tests it *)"
+      "Bash(git commit --quiet -m 'Docs: core identity pivot in CLAUDE.md — build the team, the match tests it *)",
+      "Bash(git commit --quiet -m 'Playtest #5: real flash blinding, smart flash targeting, clutch flash-peek, map generator *)"
     ]
   }
 }

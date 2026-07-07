@@ -18,6 +18,8 @@ public class PlayerProfile
     public float SprayCounter { get; set; }     // Accumulates per shot, degrades accuracy
     public bool IsReloading { get; set; }
     public float ReloadTimer { get; set; }
+    public float BlindUntil { get; set; }       // Time.time — flashed players can't fight
+    public bool IsBlinded => Time.time < BlindUntil;
 
     // Weapon assigned at buy phase
     public WeaponData.WeaponStats CurrentWeapon { get; set; }
@@ -55,6 +57,7 @@ public class PlayerProfile
         SprayCounter = 0f;
         IsReloading = false;
         ReloadTimer = 0f;
+        BlindUntil = 0f;
         CurrentWeapon = weapon;
         CurrentAmmo = weapon.magazineSize;
     }

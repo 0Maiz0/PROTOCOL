@@ -129,6 +129,13 @@ public class RoundManager : MonoBehaviour
 		}
 	}
 
+	/// <summary>Called by MapGenerator — generated maps bring their own spawns.</summary>
+	public void SetSpawnPoints(Transform[] attackers, Transform[] defenders)
+	{
+		attackerSpawns = attackers;
+		defenderSpawns = defenders;
+	}
+
 	private void FreezeAllBots()
 	{ foreach (var b in attackerBots) if (b != null) b.IsFrozen = true;
 	  foreach (var b in defenderBots) if (b != null) b.IsFrozen = true; }

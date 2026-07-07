@@ -100,6 +100,8 @@ public class EngagementSystem : MonoBehaviour
 
     private void ScanForTarget()
     {
+        if (myBot.Profile.IsBlinded) return; // white screen — nothing to scan
+
         BotController bestTarget = null;
         float bestDist = float.MaxValue;
         float myRange = myBot.Profile.CurrentWeapon.range;
@@ -245,6 +247,7 @@ public class EngagementSystem : MonoBehaviour
     public void OnDamagedBy(BotController shooter)
     {
         if (myBot == null || myBot.Profile == null || !myBot.Profile.IsAlive || myBot.IsFrozen) return;
+        if (myBot.Profile.IsBlinded) return; // can't see who's shooting you
         if (shooter == null || shooter.Profile == null || !shooter.Profile.IsAlive) return;
         if (myStateMachine.CurrentState == BotState.Shooting ||
             myStateMachine.CurrentState == BotState.Dead) return;
@@ -269,6 +272,7 @@ public class EngagementSystem : MonoBehaviour
     public void AlertAt(Vector3 position)
     {
         if (myBot == null || myBot.Profile == null || !myBot.Profile.IsAlive || myBot.IsFrozen) return;
+        if (myBot.Profile.IsBlinded) return;
         if (myStateMachine.CurrentState == BotState.Shooting ||
             myStateMachine.CurrentState == BotState.Dead) return;
 
@@ -316,6 +320,9 @@ public class EngagementSystem : MonoBehaviour
             if (disengageTimer > 0.6f) Disengage();
             return;
         }
+
+        // Flashed mid-fight — can't track, can't shoot. The peeker's window.
+        if (myBot.Profile.IsBlinded) return;
 
         disengageTimer = 0f;
         RotateToward(currentTarget.transform);

@@ -354,6 +354,13 @@ public class ObserverCamera : MonoBehaviour
 		currentMode = CameraMode.Overview;
 	}
 
+	/// <summary>Called by MapGenerator so the overview matches the generated layout.</summary>
+	public void SetOverview(Vector3 position, Vector3 eulerRotation)
+	{
+		overviewPosition = position;
+		overviewRotation = eulerRotation;
+	}
+
 	public void SetFollowMode()
 	{
 		currentMode = CameraMode.Follow;

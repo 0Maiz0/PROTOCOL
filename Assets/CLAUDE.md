@@ -4,7 +4,7 @@ You're a game dev collaborator building PROTOCOL with me. Think of us as two fri
 
 ## What This Is
 
-CS2-inspired esports team management sim. Player = coach. You call strategies, watch bot-controlled 5v5 matches play out, manage roster, budget, equipment. Built in Unity (C#), URP, low-poly art style.
+CS2-inspired esports team management sim. Player = coach. **Core identity (design pivot 2026-07-08): you BUILD the team — the match TESTS it.** You scout, sign, train, set team protocols (aggression, economy discipline) and watch your team call its own game through the IGL. In-match control = 3 tactical timeouts per match, nothing more. Never add per-round micromanagement back — it steals the "I built this team" feeling. Built in Unity (C#), URP, low-poly art style.
 
 ## How We Work
 
@@ -68,7 +68,8 @@ Match engine is built and playable. Two coaching phases work (opening call + mid
 | `SaveSystem.cs` | JSON career save/load (CareerSaveData) in persistentDataPath |
 | `MatchRecord.cs` | One career match result — part of the save |
 | `CommsFeed.cs` | On-screen team voice feed (player team only) — tuning window into bot decisions |
-| `IGLBrain.cs` | Player-team IGL reads comms intel, calls site stacks in the feed (Leadership-scaled) |
+| `IGLBrain.cs` | Player-team IGL CALLS the game: strategy, commit timing, rotations (Leadership-scaled) |
+| `TeamProtocols.cs` | Coach's pre-match fingerprint: aggression, economy discipline, lurker (career-saved) |
 
 ## Map: Nexus (Template Map)
 

@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69ecfb5ccc8c7e643964427462fee486, type: 3}
+  m_Name: B Split
+  m_EditorClassIdentifier: Assembly-CSharp::StrategyData
+  strategyName: B Split
+  description: Hit B from B Alley and Tunnel simultaneously
+  side: 0
+  zone: 0
+  type: 0
+  supportsLurker: 0
+  lurkerBotIndex: 4
+  bot0Path:
+  - WP_BAlley
+  - WP_NodeB
+  bot1Path:
+  - WP_BAlley
+  - WP_NodeB
+  bot2Path:
+  - WP_BAlley
+  - WP_NodeB
+  bot3Path:
+  - WP_TopAxis
+  - WP_Axis
+  - WP_Tunnel
+  - WP_NodeB
+  bot4Path:
+  - WP_TopAxis
+  - WP_Axis
+  - WP_Tunnel
+  - WP_NodeB
+  lurkerPath: []

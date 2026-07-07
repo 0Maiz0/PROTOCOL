@@ -1,0 +1,104 @@
+# PROTOCOL — Sprint 2: план имплементации
+
+Обновлено: 2026-07-07. Язык: русский для обсуждения, код/комменты — английский.
+
+---
+
+## Цель спринта
+
+Замкнуть полный геймплейный луп: **скаутинг → подписание → закупка экипировки → тренерский матч → результат → повтор**. Матч-энджин готов; спринт добавляет менеджерский слой.
+
+---
+
+## Статус фаз
+
+| Фаза | Скоуп | Статус |
+|------|-------|--------|
+| A | Хребет карьеры: CareerManager (DontDestroyOnLoad), CareerPlayer + PlayerGenerator, Home ↔ Match поток, призовые | ✅ Код готов, ждёт плейтеста |
+| B | Хаб с табами (Calendar/Roster/Scouting/Shop/Budget), JSON-сейв, спонсорка, история матчей | ✅ Код готов, ждёт плейтеста |
+| C | Офферы + переговоры (эго-порог), назначение ролей, релизы, блок матча при <5 | ✅ Код готов, ждёт плейтеста |
+| D | Магазин: покупки экипировки за бюджет | ⬜ Следующая |
+| E | 3D-квартира, химия, эффекты личности, uGUI-пасс | ⬜ Финальная |
+
+**Порядок работ**: плейтест A+B+C → фиксы багов → P0-фиксы движка → Фаза D → P1-фиксы → Фаза E.
+
+---
+
+## Фаза D — Equipment Shop (детальный скоуп)
+
+Вся логика бонусов уже в движке (`EquipmentBonuses` → `PlayerProfile.Effective*`). Осталась только покупка.
+
+**Прайс-лист (первичный баланс, тюним после теста):**
+
+| Предмет | Тир | Цена | Бонус |
+|---------|-----|------|-------|
+| PC | Mid / HighEnd | $2 500 / $6 000 | AIM +5 / +10 (команда) |
+| Monitor | 144Hz / 240Hz | $1 200 / $3 000 | REF +5 / +10 (команда) |
+| Mouse | Tier 1 / 2 | $300 / $800 | AIM +2 / +5 |
+| Headset | Tier 1 / 2 | $300 / $800 | COM +2 / +5 |
+| Chair | Tier 1 / 2 | $400 / $1 000 | CON +1 / +3 |
+
+**Правила**: покупки одноразовые, только апгрейд (без даунгрейда/продажи), цена апгрейда = разница тиров не нужна — платим фулл-прайс за новый тир (проще; обсуждаемо). Списание из бюджета, сейв сразу после покупки.
+
+**Файлы**: цены в `Constants.cs`; кнопки покупки в `HomeHub.DrawShop`; метод `CareerManager.TryPurchase(...)`. Движок не трогаем.
+
+---
+
+## Фаза E — Квартира и глубина (скоуп)
+
+1. **3D-комната**: стол, ПК, монитор; камера наезжает на монитор → тот же management-UI.低-poly, одна сцена.
+2. **Химия команды**: растёт от матчей вместе / буст от побед; модификатор в бою (малый).
+3. **Эффекты личности**: misfit-роль (assignedRole ≠ preferredRole) → штраф; toxicity душит химию; workEthic → рост статов со временем; leadership → буст IGL-коллов.
+4. **uGUI-пасс**: единая миграция всего IMGUI (hub + матчевые панели) — только после стабилизации фич.
+5. Опционально: клатч-эффект в движке (см. P1-4), тренерский выбор закупки (P1-6).
+
+---
+
+## Бэклог фиксов матч-энджина (по ревью 2026-07-07)
+
+### P0 — ломают заявленные фичи
+
+1. **Стейджинг Execute затирается AI-коучем.** `StrategyExecutor` один на сцене (проверено), `ExecuteStrategy()` безусловно чистит `stagedBots` ([StrategyExecutor.cs:47](../Assets/Scripts/BotControl/StrategyExecutor.cs)). Порядок в RoundManager: сначала игрок, потом `AICoach.PickAndExecute` → стейджинг игрока стирается **каждый раунд**. Симптом: MidRoundPanel показывает фолбэк «COMMIT — push nearest» вместо «EXECUTE»; правило №4 (stage → commit) фактически не работает с момента добавления AICoach. Если AI когда-нибудь получит Execute/Control-страту — кнопка игрока будет коммитить **вражеских** ботов.
+   **Фикс**: стейджинг-списки по `TeamSide` (`ExecuteStrategy(strategy, bots, side)`, `CommitStagedBots(side)`, `HasStagedBots(side)`); ~20 строк, затрагивает StrategyExecutor + RoundManager + MidRoundPanel + AICoach.
+
+2. **Kill cam мёртв.** `ObserverCamera` подписан на `DuelTrigger.OnDuelResolved` ([ObserverCamera.cs:61](../Assets/Scripts/PlayerGP/ObserverCamera.cs)), но `DuelTrigger` не висит на префабе бота (проверено по GUID) — событие никогда не стреляет. Авторежиссёр не переключается на киллы.
+   **Фикс**: подписка на `EngagementSystem.OnDuelResolved` (две строки).
+
+3. **`DuelTrigger.cs` — мёртвый код целиком** (легаси-система мгновенных дуэлей). После фикса №2 — удалить файл, чтобы не путал (это также единственный вызов `DuelResolver.Resolve`).
+
+### P1 — статы и фичи, которые молча не работают
+
+4. **Clutch ни на что не влияет.** Используется только в мёртвом `DuelResolver`. Обещание дизайна: «бонус в 1vX».
+   **Фикс-идея**: в `EngagementSystem.FireAtTarget` — множитель к hit chance, когда бот последний живой против 2+.
+
+5. **Бонус кресла (consistency) мёртв в бою.** [PlayerProfile.cs:138](../Assets/Scripts/Players/PlayerProfile.cs) использует `Data.consistency` вместо `EffectiveConsistency` — экипировка не докидывает. Однострочный фикс.
+
+6. **Тренер не выбирает закупку.** `TeamEconomy.ApplyBuy` решает сам за обе команды; выбор Full/Force/Half/Eco из брифа не имплементирован, Half не использует никто.
+   **Фикс**: кнопки байтипа в CoachPanel на freeze time (только для команды игрока), AI-логика остаётся для врага.
+
+7. **SLOW PLAY не останавливает ботов.** `MidRoundPanel.StopBots` переводит в Peeking, но не делает `agent.isStopped = true` — боты доезжают до вейпоинтов. Пара строк.
+
+8. **Формула дуэли в CLAUDE.md устарела.** Реальный бой — sustained fire через `CalculateHitChance` (спрей, дистанция, movement penalty), а не документированная формула WinChance. Обновить доку после фиксов 4-5.
+
+### P2 — перф и гигиена
+
+9. **FindObjectsByType в хот-патах** (нарушение собственного правила): `BotController.FindNearestEnemy` каждые 0.3с на стоящего бота, `AvoidMolotov` — FindObjectsByType<GrenadeEffect> каждые 0.5с × 10 ботов. **Фикс**: статические реестры (паттерн уже есть — `EngagementSystem.allSystems`).
+10. **Утечка материалов трейсеров**: `new Material(Shader.Find(...))` на каждый выстрел; Destroy(obj) не уничтожает материал. **Фикс**: один shared static material.
+11. **Прогресс закладки не сбрасывается при смене плантера**: плантер умер на 80% — следующий Т на сайте «доплантит» с 80% и его не остановит `IsPlanting` (инициализация пропускается, `currentPlanter` протухает). [BombManager.cs:106](../Assets/Scripts/Rounds/BombManager.cs).
+12. Мелочь: `'A Execute  '` — трейлинг-пробелы в имени ассета; дублирующиеся кэши текстур `_tc` в трёх HUD-скриптах; материал-инстансы в `SetColor` на каждый свап.
+
+---
+
+## Организация файлов (сделано 2026-07-07)
+
+- `Assets/MatchAudioManager.cs` → `Assets/Scripts/Audio/`
+- `Assets/Bot.prefab` → `Assets/Prefabs/`
+- `Assets/New Material*.mat` → `Assets/Materials/`
+- `Assets/Equipment Setup.asset` → `Assets/Equipment/`
+- `Assets/InputSystem_Actions.inputactions` → `Assets/Settings/`
+- `BombSIte.cs` → `BombSite.cs` (опечатка; класс внутри и так `BombSite`)
+- Все перемещения — вместе с `.meta` (GUID сохранены, ссылки сцены целы)
+
+**Рекомендации (не сделано, нужно решение):**
+- `Assets/TutorialInfo/` + `Assets/Readme.asset` — мусор из шаблона Unity, можно удалять
+- **Проект не под git!** Один неудачный рефактор без VCS — и отката нет. Сильно рекомендую `git init` + Unity `.gitignore` (Library/, Temp/, obj/ и т.д.)

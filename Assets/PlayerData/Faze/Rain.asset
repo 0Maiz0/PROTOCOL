@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de172b280ade17b488cab684fe1c39af, type: 3}
+  m_Name: Rain
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerData
+  playerName: 
+  nickname: Rain
+  nationality: 
+  portrait: {fileID: 0}
+  aim: 90
+  reflexes: 88
+  gameSense: 85
+  clutch: 78
+  consistency: 84
+  communication: 50
+  ego: 30
+  workEthic: 50
+  toxicity: 10
+  leadership: 30
+  salaryPerMonth: 500
+  preferredRole: 1

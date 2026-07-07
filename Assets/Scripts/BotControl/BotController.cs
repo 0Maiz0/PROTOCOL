@@ -30,6 +30,7 @@ public class BotController : MonoBehaviour
     private Vector3 scanPoint;
     private float scanBaseYaw;
     private float sweepPhaseOffset;
+    private float sweepArc; // GameSense-scaled: pros keep the crosshair ON the angle
 
     // Hazard-ahead: don't walk into mollies or push enemy smokes
     private float hazardCheckTimer;
@@ -42,6 +43,8 @@ public class BotController : MonoBehaviour
         if (stateMachine == null) stateMachine = GetComponent<BotStateMachine>();
         stateMachine.OnStateChanged += OnStateChanged;
         sweepPhaseOffset = Random.Range(0f, 100f); // desync sweep across bots
+        sweepArc = Mathf.Lerp(Constants.SWEEP_ARC_LOW_GS, Constants.SWEEP_ARC_HIGH_GS,
+            profile.Data.gameSense / 100f);
     }
 
     private void OnDestroy() { if (stateMachine != null) stateMachine.OnStateChanged -= OnStateChanged; }
@@ -122,9 +125,10 @@ public class BotController : MonoBehaviour
             }
             else
             {
-                // No intel — sweep the held angle to cover the FOV blind spots
+                // No intel — sweep the held angle (narrow for high GameSense: crosshair
+                // placement discipline; wide wandering aim for low GS)
                 float sweep = Mathf.PingPong((Time.time + sweepPhaseOffset) * Constants.SCAN_SWEEP_SPEED,
-                    Constants.SCAN_SWEEP_ARC) - Constants.SCAN_SWEEP_ARC * 0.5f;
+                    sweepArc) - sweepArc * 0.5f;
                 Quaternion target = Quaternion.Euler(0f, scanBaseYaw + sweep, 0f);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, target,
                     Constants.SCAN_SWEEP_SPEED * Time.deltaTime);

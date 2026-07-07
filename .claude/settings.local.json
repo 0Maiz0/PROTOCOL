@@ -7,7 +7,9 @@
       "Bash(git count-objects *)",
       "Bash(git config *)",
       "Bash(git commit --quiet -m 'Playtest #1 fixes: combat awareness, burst discipline, grouped retakes, POV cam *)",
-      "Bash(git commit --quiet -m 'Playtest #2: CS2 economy with per-player buys, CT info brain, JIT utility, CS-ref shooting *)"
+      "Bash(git commit --quiet -m 'Playtest #2: CS2 economy with per-player buys, CT info brain, JIT utility, CS-ref shooting *)",
+      "Bash(git commit --quiet -m 'Docs: playtest #2 section in sprint plan *)",
+      "Bash(git commit --quiet -m 'Playtest #3: crosshair placement model — duels decided before the trigger *)"
     ]
   }
 }

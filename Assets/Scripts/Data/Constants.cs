@@ -56,8 +56,7 @@ public static class Constants
 
     // Bot AI (engine fix pass)
     public const float CLUTCH_HITCHANCE_SCALE = 0.3f; // hit-chance multiplier scale in 1vX
-    public const float SCAN_SWEEP_ARC = 120f;         // idle hold-angle sweep, degrees
-    public const float SCAN_SWEEP_SPEED = 45f;        // sweep rotation speed, deg/sec
+    public const float SCAN_SWEEP_SPEED = 35f;        // sweep rotation speed, deg/sec
     public const float AI_COMMIT_DELAY_MIN = 10f;     // AI coach commit window after strategies run
     public const float AI_COMMIT_DELAY_MAX = 18f;
 
@@ -75,6 +74,25 @@ public static class Constants
     public const float HEADSHOT_BASE_CHANCE = 0.05f;
     public const float HEADSHOT_AIM_SCALE = 0.15f;     // aim 100 → +15% headshot chance
     public const float HEADSHOT_MULTIPLIER = 3.2f;     // rifle body 33 → ~105 head (one-tap like AK)
+
+    // Crosshair placement model (playtest #3) — the duel is decided before the trigger
+    public const float ACQUIRE_REACTION_MAX = 0.40f;      // reflexes 0
+    public const float ACQUIRE_REACTION_MIN = 0.10f;      // reflexes 100
+    public const float ACQUIRE_ANGLE_MIN_FACTOR = 0.5f;   // enemy walks INTO the crosshair — boom
+    public const float ACQUIRE_ANGLE_MAX_FACTOR = 1.6f;   // caught 90°+ off-angle — long swing
+    public const float ACQUIRE_INTEL_FACTOR = 0.65f;      // prefire/pre-aim: the team knew they were there
+    public const float INTEL_PREAIM_RADIUS = 8f;          // intel counts if within this of the actual position
+    public const float AWP_ACQUIRE_PENALTY = 0.25f;       // scoping in
+
+    // Counter-strafe discipline — rifles do not fire on the move
+    public const float MOVE_ACCURACY_RIFLE = 0.08f;       // AK sprinting hits nothing
+    public const float MOVE_ACCURACY_AWP = 0.02f;
+    public const float MOVE_ACCURACY_LIGHT = 0.7f;        // SMG/pistol run-and-gun is legit
+    public const float COUNTERSTRAFE_SPEED_THRESHOLD = 1.2f; // above this speed a rifle holds fire
+
+    // Hold-angle sweep by GameSense (pros keep the crosshair ON the angle)
+    public const float SWEEP_ARC_LOW_GS = 80f;
+    public const float SWEEP_ARC_HIGH_GS = 30f;
 
     // Utility timing (playtest #2)
     public const float UTIL_THROW_RANGE = 25f;    // rush smoke thrown when pack is this close

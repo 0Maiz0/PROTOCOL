@@ -169,7 +169,13 @@ public class EngagementSystem : MonoBehaviour
 
     // ===================== ENGAGEMENT =====================
 
-    private void StartEngagement(BotController target)
+    /// <summary>
+    /// The duel is decided before the trigger: acquisition time depends on how far
+    /// the crosshair must swing (angle), whether the team had intel on this enemy
+    /// (prefire/pre-aim) and map knowledge (GameSense). A holder facing the choke
+    /// punishes instantly; a flanked victim swings for ages.
+    /// </summary>
+    private void StartEngagement(BotController target, float overrideAngle = -1f)
     {
         currentTarget = target;
         disengageTimer = 0f;
@@ -181,13 +187,32 @@ public class EngagementSystem : MonoBehaviour
             clutchFactor = 1f + ((myBot.Profile.Data.clutch - Constants.CLUTCH_BASELINE) / 100f)
                                 * Constants.CLUTCH_HITCHANCE_SCALE;
 
-        float reactionTime = Mathf.Lerp(0.5f, 0.08f, myBot.Profile.EffectiveReflexes / 100f);
+        // === CROSSHAIR PLACEMENT ===
+        Vector3 toEnemy = target.transform.position - transform.position;
+        toEnemy.y = 0f;
+        float angle = overrideAngle >= 0f ? overrideAngle : Vector3.Angle(transform.forward, toEnemy);
+        float angleFactor = Mathf.Lerp(Constants.ACQUIRE_ANGLE_MIN_FACTOR, Constants.ACQUIRE_ANGLE_MAX_FACTOR,
+            Mathf.Clamp01(angle / 90f));
+
+        float baseReaction = Mathf.Lerp(Constants.ACQUIRE_REACTION_MAX, Constants.ACQUIRE_REACTION_MIN,
+            myBot.Profile.EffectiveReflexes / 100f);
+
+        // Prefire/pre-aim: the team KNEW someone was around this spot
+        float infoFactor = 1f;
+        if (CommsManager.Instance != null &&
+            CommsManager.Instance.AnyKnownEnemyNear(myBot.Side, target.transform.position, Constants.INTEL_PREAIM_RADIUS))
+            infoFactor = Constants.ACQUIRE_INTEL_FACTOR;
+
+        // Map knowledge sharpens the swing
+        float gsFactor = Mathf.Lerp(1.15f, 0.85f, myBot.Profile.Data.gameSense / 100f);
+
+        float acquire = baseReaction * angleFactor * infoFactor * gsFactor;
         if (myBot.Profile.CurrentWeapon.weaponName == "AWP")
-            reactionTime += 0.3f;
+            acquire += Constants.AWP_ACQUIRE_PENALTY;
 
         // Respect the weapon's fire interval across target switches —
         // an AWP can't instantly re-fire at a new target (bolt cycle)
-        fireTimer = Mathf.Max(reactionTime, weaponCooldownUntil - Time.time);
+        fireTimer = Mathf.Max(acquire, weaponCooldownUntil - Time.time);
         myStateMachine.TransitionTo(BotState.Shooting);
 
         RotateToward(target.transform);
@@ -222,12 +247,15 @@ public class EngagementSystem : MonoBehaviour
 
         Vector3 dir = shooter.transform.position - transform.position;
         dir.y = 0f;
+        // The angle we were CAUGHT at decides how slow the answer is —
+        // flanked victims turn visually but still swing the aim for ages
+        float caughtAngle = dir.sqrMagnitude > 0.01f ? Vector3.Angle(transform.forward, dir) : 0f;
         if (dir.sqrMagnitude > 0.01f)
             transform.rotation = Quaternion.LookRotation(dir);
 
         float dist = Vector3.Distance(transform.position, shooter.transform.position);
         if (dist <= myBot.Profile.CurrentWeapon.range && HasLineOfSight(shooter.transform, dist))
-            StartEngagement(shooter);
+            StartEngagement(shooter, caughtAngle);
     }
 
     /// <summary>
@@ -254,6 +282,14 @@ public class EngagementSystem : MonoBehaviour
             return false;
         if (myBot.Profile.AssignedRole == Role.AWPer) return false;
         if (myBot.CanRunAndGun()) return false;
+
+        // Trade discipline: a teammate is already fighting this target —
+        // stand and pour damage instead of ducking behind cover
+        foreach (var s in allSystems)
+            if (s != this && s.myBot != null && s.myBot.Profile != null && s.myBot.Profile.IsAlive &&
+                s.myBot.Side == myBot.Side && s.currentTarget == currentTarget)
+                return false;
+
         return true;
     }
 
@@ -286,6 +322,11 @@ public class EngagementSystem : MonoBehaviour
             CommsManager.Instance.RequestHelp(myBot);
             hasCalledHelp = true;
         }
+
+        // Counter-strafe: rifles/AWP hold fire until (nearly) stopped — no AK run-and-gun
+        if (!myBot.CanRunAndGun() && myBot.Agent != null &&
+            myBot.Agent.velocity.magnitude > Constants.COUNTERSTRAFE_SPEED_THRESHOLD)
+            return; // settling — the shot comes the moment we plant
 
         // Fire check — respect cover cycle
         bool canFire = true;
@@ -323,9 +364,11 @@ public class EngagementSystem : MonoBehaviour
         weaponCooldownUntil = Time.time + profile.CurrentWeapon.fireInterval;
 
         float movePenalty = 1f;
-        if (myBot.Agent != null && !myBot.Agent.isStopped && myBot.Agent.velocity.magnitude > 0.5f)
+        if (myBot.Agent != null && myBot.Agent.velocity.magnitude > 0.5f)
         {
-            movePenalty = myBot.CanRunAndGun() ? 0.7f : 0.25f;
+            movePenalty = myBot.CanRunAndGun()
+                ? Constants.MOVE_ACCURACY_LIGHT
+                : (profile.CurrentWeapon.weaponName == "AWP" ? Constants.MOVE_ACCURACY_AWP : Constants.MOVE_ACCURACY_RIFLE);
         }
 
         float hitChance = Mathf.Min(profile.CalculateHitChance(distance) * movePenalty * clutchFactor, 0.98f);

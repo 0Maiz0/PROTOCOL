@@ -100,11 +100,13 @@ hitChance = weaponAccuracy × (0.5 + Aim/200) × sprayPenalty × distanceFalloff
           × consistencyFactor × movementPenalty × clutchFactor(1vX only)
 ```
 
-- Reaction time before first shot: lerp(0.5s → 0.08s) by Effective Reflexes; AWP +0.3s
-- Clutch: last-alive vs 2+ → hit-chance × (1 + (Clutch−50)/100 × 0.3)
-- Non-lethal hits alert the victim — they snap toward the shooter and engage back
-- Buy type affects combat through the assigned weapon (Full = rifle/AWP, Eco = pistol)
-- Equipment feeds Effective* stats: PC/mouse → Aim, monitor → Reflexes, chair → Consistency, headset → Communication (comms info quality)
+- **Crosshair placement decides duels**: acquisition time = baseReaction(Reflexes 0.4→0.1s) × angleFactor(0.5 if enemy walks into the crosshair … 1.6 if flanked 90°+) × intelFactor(0.65 when comms knew they were there — prefire/pre-aim) × gsFactor(GameSense); AWP +0.25s scope-in
+- **Counter-strafe**: rifles/AWP hold fire above 1.2 velocity and hit ~nothing on the move (rifle 0.08×, AWP 0.02×); SMG/pistol run-and-gun at 0.7×
+- Hold-angle sweep arc scales with GameSense (30° pro … 80° wanderer)
+- Trade discipline: if a teammate already fights your target, pour damage — no cover cycle
+- Clutch: last-alive vs 2+ → hit-chance × (1 + (Clutch−50)/100 × 0.3); headshots aim-scaled (rifle one-taps ×3.2); first-bullet accuracy ×1.25
+- Non-lethal hits alert the victim — they snap toward the shooter but the answer speed depends on the angle they were CAUGHT at
+- Economy v3 buys weapons per player from the team pool; equipment feeds Effective* stats
 - Idle/peeking bots pre-aim comms intel or sweep their held angle — they never track enemies through walls
 
 ## Economy

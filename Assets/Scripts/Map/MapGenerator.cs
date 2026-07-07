@@ -20,7 +20,7 @@ public class MapGenerator : MonoBehaviour
 {
     [Header("Generation")]
     [SerializeField] private int seed = 0; // 0 = random every play session
-    [SerializeField] private bool generateOnAwake = true;
+    [SerializeField] private bool generateOnAwake = false; // OPT-IN — the hand-made map is the default
     [SerializeField] private float wallHeight = 3f;
 
     [Header("Wiring (auto-found if empty)")]

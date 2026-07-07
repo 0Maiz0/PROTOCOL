@@ -92,6 +92,12 @@ public class RoundManager : MonoBehaviour
 		if (FindObjectOfType<CommsFeed>() == null) gameObject.AddComponent<CommsFeed>();
 		CommsFeed.SetPlayerSide(State.playerTeamSide);
 
+		// Broadcast-style intro splash
+		var intro = FindObjectOfType<MatchIntro>();
+		if (intro == null) intro = gameObject.AddComponent<MatchIntro>();
+		intro.Show("YOUR SQUAD",
+			CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "OPPONENT");
+
 		if (attackerEquipment == null) attackerEquipment = ScriptableObject.CreateInstance<EquipmentBonuses>();
 		if (defenderEquipment == null) defenderEquipment = ScriptableObject.CreateInstance<EquipmentBonuses>();
 
@@ -199,6 +205,7 @@ public class RoundManager : MonoBehaviour
 		}
 
 		economy.DecideBuys(State.playerTeamSide, GetProtocols().economyDiscipline, !timeoutRound);
+		CommsFeed.PostOpponent($"buy: {economy.GetEconomy(State.playerTeamSide == TeamSide.Attacker ? TeamSide.Defender : TeamSide.Attacker).currentBuyType}");
 
 		if (observerCamera != null) observerCamera.SetOverviewMode();
 

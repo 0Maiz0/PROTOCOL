@@ -137,6 +137,7 @@ public static class Constants
     // Scenes
     public const string HOME_SCENE_NAME = "Home";
     public const string MATCH_SCENE_NAME = "SampleScene";
+    public const string MENU_SCENE_NAME = "MainMenu";
 
     // Roster & Negotiation (Phase C)
     public const int ROSTER_SIZE = 5;

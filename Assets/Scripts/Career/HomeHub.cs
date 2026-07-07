@@ -73,7 +73,10 @@ public class HomeHub : MonoBehaviour
         GUI.Box(new Rect(x - 15, y - 10, w + 30, 660), "");
 
         // ---------- Header (always visible) ----------
-        GUI.Label(new Rect(x, y, w, 34), "PROTOCOL — MANAGEMENT", h1); y += 40;
+        GUI.Label(new Rect(x, y, w, 34), "PROTOCOL — MANAGEMENT", h1);
+        if (GUI.Button(new Rect(x + w - 110, y + 2, 100, 30), "MENU", smallBtn))
+            UnityEngine.SceneManagement.SceneManager.LoadScene(Constants.MENU_SCENE_NAME);
+        y += 40;
         GUI.Label(new Rect(x, y, w, 24), $"Week {cm.currentWeek}   |   Budget: ${cm.budget:N0}", h2); y += 26;
 
         if (cm.hasLastResult)

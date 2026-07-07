@@ -107,6 +107,9 @@ public class GrenadeEffect : MonoBehaviour
             float reflexFactor = Mathf.Clamp(1f - bot.Profile.EffectiveReflexes / 150f, 0.3f, 1f);
             float strength = ((dot > 0.3f) ? 1f : 0.4f) * reflexFactor * (1f - dist / Radius);
 
+            // Teammates KNOW the pop is coming — they turn away (don't full-blind your own execute)
+            if (bot.Side == ThrowerSide) strength *= 0.25f;
+
             if (strength > 0.1f)
             {
                 bot.Profile.SprayCounter += strength * 0.8f;

@@ -153,8 +153,11 @@ public class AICoach : MonoBehaviour
         }
 
         if (rotated > 0)
+        {
             Debug.Log($"AI COACH (CT): info points {site} — rotating {rotated} player(s), " +
                       $"{(anchor != null ? anchor.Profile.Data.nickname : "nobody")} anchors far site");
+            CommsFeed.PostOpponent($"reading {site} — rotating {rotated}, anchor stays far");
+        }
     }
 
     /// <summary>
@@ -184,6 +187,7 @@ public class AICoach : MonoBehaviour
         {
             strategyExecutor.ExecuteStrategy(picked, bots, aiSide, allowLurker: false);
             Debug.Log($"AI COACH ({aiSide}): Selected {picked.strategyName}");
+            CommsFeed.PostOpponent($"call: {picked.strategyName.Trim()}");
 
             // Execute/Control strats stage and wait — the AI must make its own
             // commit call, or its bots stand at staging forever.
@@ -210,6 +214,7 @@ public class AICoach : MonoBehaviour
         yield return new WaitForSeconds(0.8f); // let utility land
         strategyExecutor.CommitStagedBots(side);
         Debug.Log($"AI COACH ({side}): COMMIT — executing!");
+        CommsFeed.PostOpponent("EXECUTE — committing the hit!");
     }
 
     private StrategyData PickStrategy(StrategyData[] available, TeamSide side)

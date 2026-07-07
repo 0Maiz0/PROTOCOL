@@ -42,12 +42,21 @@ public class PlayerProfile
     /// </summary>
     public void ResetCombatState(BuyType buyType)
     {
+        ResetCombatState(WeaponData.GetWeapon(buyType, AssignedRole));
+    }
+
+    /// <summary>
+    /// Reset with an explicit weapon — economy buys per player now (v3),
+    /// the team tier alone no longer decides the loadout.
+    /// </summary>
+    public void ResetCombatState(WeaponData.WeaponStats weapon)
+    {
         HP = 100f;
         SprayCounter = 0f;
         IsReloading = false;
         ReloadTimer = 0f;
-        CurrentWeapon = WeaponData.GetWeapon(buyType, AssignedRole);
-        CurrentAmmo = CurrentWeapon.magazineSize;
+        CurrentWeapon = weapon;
+        CurrentAmmo = weapon.magazineSize;
     }
 
     /// <summary>
@@ -138,13 +147,18 @@ public class PlayerProfile
         float consistencyFactor = 1f - (Constants.MAX_VARIANCE - EffectiveConsistency * Constants.CONSISTENCY_REDUCTION) / 100f;
         hitChance *= Mathf.Lerp(0.85f, 1.1f, consistencyFactor);
 
+        // First-bullet accuracy — a settled first shot is laser-like in CS
+        if (SprayCounter <= 0.01f)
+            hitChance *= Constants.FIRST_SHOT_BONUS;
+
         return Mathf.Clamp(hitChance, 0.05f, 0.95f);
     }
 
     /// <summary>
-    /// Calculate damage for a hit at given distance.
+    /// Calculate damage for a hit at given distance. Rolls a headshot —
+    /// aim-scaled chance, rifles one-tap to the head like an AK.
     /// </summary>
-    public float CalculateDamage(float distance)
+    public float CalculateDamage(float distance, out bool headshot)
     {
         var weapon = CurrentWeapon;
 
@@ -153,8 +167,13 @@ public class PlayerProfile
 
         // Some random variance in damage (± 15%)
         float variance = Random.Range(0.85f, 1.15f);
+        float damage = weapon.damage * distMultiplier * variance;
 
-        return weapon.damage * distMultiplier * variance;
+        float hsChance = Constants.HEADSHOT_BASE_CHANCE + (EffectiveAim / 100f) * Constants.HEADSHOT_AIM_SCALE;
+        headshot = Random.value < hsChance;
+        if (headshot) damage *= Constants.HEADSHOT_MULTIPLIER;
+
+        return damage;
     }
 
     /// <summary>

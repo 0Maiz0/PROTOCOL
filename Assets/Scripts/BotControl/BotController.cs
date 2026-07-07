@@ -51,7 +51,8 @@ public class BotController : MonoBehaviour
         Renderer r = GetComponentInChildren<Renderer>();
         if (r != null) { Material m = new Material(r.sharedMaterial); m.color = c; r.material = m; }
     }
-    public void SetBuyType(BuyType b) { CurrentBuyType = b; if (Profile != null) Profile.ResetCombatState(b); }
+    public void SetLoadout(WeaponData.WeaponStats weapon, BuyType tier)
+    { CurrentBuyType = tier; if (Profile != null) Profile.ResetCombatState(weapon); }
 
     public void AssignWaypoints(Transform[] wp) { currentWaypoints = wp; waypointIndex = 0; isSeekingTarget = false; }
 

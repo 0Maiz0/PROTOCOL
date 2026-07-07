@@ -41,6 +41,11 @@ public class AICoach : MonoBehaviour
     private Coroutine autoCommitCo;
     private PostPlantManager postPlantManager;
 
+    // CT defensive brain — reacts to comms info (footsteps, contacts, enemy utility)
+    private TeamSide currentAiSide = TeamSide.Defender;
+    private float evalTimer;
+    private float rotateCooldown;
+
     private void Start()
     {
         if (bombManager != null)
@@ -73,6 +78,83 @@ public class AICoach : MonoBehaviour
                 hasRotated = true;
             }
         }
+
+        // CT defensive brain — read the info like an IGL: "do we all go A? is this a fake?"
+        if (currentAiSide == TeamSide.Defender && currentBots != null && !bombPlantDetected)
+        {
+            if (rotateCooldown > 0f) rotateCooldown -= Time.deltaTime;
+            evalTimer -= Time.deltaTime;
+            if (evalTimer <= 0f)
+            {
+                evalTimer = Constants.CT_EVAL_INTERVAL;
+                EvaluateDefense();
+            }
+        }
+    }
+
+    // ===================== CT INFO REACTIONS =====================
+
+    /// <summary>
+    /// Compare info signals per site (known enemies from comms + enemy utility landing)
+    /// and rotate with one anchor left behind. Over-rotating on noise is exactly
+    /// what makes FAKE strategies a real option for the attackers.
+    /// </summary>
+    private void EvaluateDefense()
+    {
+        if (rotateCooldown > 0f || CommsManager.Instance == null) return;
+
+        GameObject aWP = GameObject.Find("WP_NodeA"), bWP = GameObject.Find("WP_NodeB");
+        if (aWP == null || bWP == null) return;
+
+        int sigA = CommsManager.Instance.CountKnownEnemiesNear(TeamSide.Defender, aWP.transform.position, Constants.CT_SIGNAL_RANGE)
+                 + CountEnemyUtilNear(aWP.transform.position);
+        int sigB = CommsManager.Instance.CountKnownEnemiesNear(TeamSide.Defender, bWP.transform.position, Constants.CT_SIGNAL_RANGE)
+                 + CountEnemyUtilNear(bWP.transform.position);
+
+        if (sigA - sigB >= Constants.CT_ROTATE_SIGNAL_DIFF)
+            RotateDefense("A", aWP.transform, bWP.transform.position);
+        else if (sigB - sigA >= Constants.CT_ROTATE_SIGNAL_DIFF)
+            RotateDefense("B", bWP.transform, aWP.transform.position);
+    }
+
+    private int CountEnemyUtilNear(Vector3 pos)
+    {
+        int c = 0;
+        var fx = GrenadeEffect.ActiveEffects;
+        for (int i = 0; i < fx.Count; i++)
+            if (fx[i] != null && fx[i].IsActive && fx[i].ThrowerSide == TeamSide.Attacker &&
+                Vector3.Distance(fx[i].transform.position, pos) < Constants.CT_SIGNAL_RANGE)
+                c++;
+        return c;
+    }
+
+    private void RotateDefense(string site, Transform target, Vector3 anchorSite)
+    {
+        rotateCooldown = Constants.CT_ROTATE_COOLDOWN;
+
+        // One anchor stays on the far site — never fully abandon it
+        BotController anchor = null;
+        float best = float.MaxValue;
+        foreach (var bot in currentBots)
+        {
+            if (bot == null || bot.Profile == null || !bot.Profile.IsAlive) continue;
+            float d = Vector3.Distance(bot.transform.position, anchorSite);
+            if (d < best) { best = d; anchor = bot; }
+        }
+
+        int rotated = 0;
+        foreach (var bot in currentBots)
+        {
+            if (bot == null || bot.Profile == null || !bot.Profile.IsAlive || bot == anchor) continue;
+            if (Vector3.Distance(bot.transform.position, target.position) < 12f) continue; // already there
+            bot.AssignWaypoints(new Transform[] { target });
+            bot.StartExecuting();
+            rotated++;
+        }
+
+        if (rotated > 0)
+            Debug.Log($"AI COACH (CT): info points {site} — rotating {rotated} player(s), " +
+                      $"{(anchor != null ? anchor.Profile.Data.nickname : "nobody")} anchors far site");
     }
 
     /// <summary>
@@ -82,8 +164,11 @@ public class AICoach : MonoBehaviour
     public StrategyData PickAndExecute(TeamSide aiSide, List<BotController> bots)
     {
         currentBots = bots;
+        currentAiSide = aiSide;
         hasRotated = false;
         bombPlantDetected = false;
+        rotateCooldown = 6f; // settle into positions before reacting to info
+        evalTimer = Constants.CT_EVAL_INTERVAL;
 
         StrategyData[] available = (aiSide == TeamSide.Defender) ? ctStrategies : tStrategies;
 

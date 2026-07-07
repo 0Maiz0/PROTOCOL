@@ -73,6 +73,9 @@ public class StrategyExecutor : MonoBehaviour
         {
             if (bots[i] == null || !bots[i].Profile.IsAlive) continue;
 
+            // A committed rush runs through mollies — hesitation kills the timing
+            bots[i].HazardBypass = (strategy.type == StrategyType.Rush);
+
             string[] pathNames;
 
             if (useLurker && strategy.supportsLurker && i == strategy.lurkerBotIndex

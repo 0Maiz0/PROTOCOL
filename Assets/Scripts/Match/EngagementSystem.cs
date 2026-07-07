@@ -335,8 +335,10 @@ public class EngagementSystem : MonoBehaviour
 
         if (isHit)
         {
-            float damage = profile.CalculateDamage(distance);
+            float damage = profile.CalculateDamage(distance, out bool headshot);
             bool killed = currentTarget.Profile.TakeDamage(damage);
+            if (headshot && killed)
+                Debug.Log($"HEADSHOT: {profile.Data.nickname} one-taps {currentTarget.Profile.Data.nickname}!");
             if (killed) OnTargetKilled(currentTarget);
             else if (currentTarget.TryGetComponent(out EngagementSystem victim))
                 victim.OnDamagedBy(myBot);
@@ -399,6 +401,9 @@ public class EngagementSystem : MonoBehaviour
         if (myStateMachine.CurrentState == BotState.Peeking || myStateMachine.CurrentState == BotState.Idle)
             currentFOV = stationaryFOV;
         if (myStateMachine.CurrentState == BotState.Shooting)
+            currentFOV = 360f;
+        // Point-blank you HEAR them — no more circling each other obliviously
+        if (distance < Constants.PROXIMITY_AWARENESS_RANGE)
             currentFOV = 360f;
 
         if (Vector3.Angle(transform.forward, direction) > currentFOV * 0.5f) return false;

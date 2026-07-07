@@ -185,6 +185,25 @@ public class CommsManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Known (recent, alive) enemies near a position — drives CT rotations and choke denial.
+    /// </summary>
+    public int CountKnownEnemiesNear(TeamSide side, Vector3 pos, float range)
+    {
+        var dict = (side == TeamSide.Attacker) ? attackerKnownEnemies : defenderKnownEnemies;
+        int count = 0;
+        foreach (var kvp in dict)
+        {
+            if (!kvp.Value.isAlive) continue;
+            if (Time.time - kvp.Value.timeSpotted > INFO_DECAY) continue;
+            if (Vector3.Distance(pos, kvp.Value.lastPosition) <= range) count++;
+        }
+        return count;
+    }
+
+    public bool AnyKnownEnemyNear(TeamSide side, Vector3 pos, float range)
+        => CountKnownEnemiesNear(side, pos, range) > 0;
+
+    /// <summary>
     /// How many alive enemies does this team know about?
     /// </summary>
     public int GetKnownEnemyCount(TeamSide side)

@@ -41,7 +41,7 @@ public class GrenadeManager : MonoBehaviour
 
     public void SetBotReferences(List<BotController> a, List<BotController> d) { attackerBots = a; defenderBots = d; }
     public void AllocateUtility(BuyType aB, BuyType dB) { attackerBuyType = aB; defenderBuyType = dB; }
-    public void ResetForRound() { ClearAllGrenades(); ctReactiveUsed = false; }
+    public void ResetForRound() { StopAllCoroutines(); ClearAllGrenades(); ctReactiveUsed = false; }
 
     // ===================== API =====================
 
@@ -81,17 +81,28 @@ public class GrenadeManager : MonoBehaviour
 
     private IEnumerator RushUtility(StrategyZone zone, int budget)
     {
-        yield return new WaitForSeconds(1.5f);
-
-        // Support player throws (behind the pack)
-        BotController thrower = FindThrower(TeamSide.Attacker, Role.Support);
-
         string crossingSmoke = zone == StrategyZone.NodeA ? "WP_Garden" : "WP_Bazaar";
         string entryFlash = zone == StrategyZone.NodeA ? "WP_NodeA" : "WP_NodeB";
+        Vector3 smokeTarget = GetWP(crossingSmoke);
+
+        // Just-in-time: wait until the pack actually approaches the cross —
+        // a smoke thrown from spawn fades before anyone uses it
+        BotController thrower = FindThrower(TeamSide.Attacker, Role.Support);
+        float waited = 0f;
+        while (waited < Constants.UTIL_JIT_TIMEOUT)
+        {
+            if (thrower == null || !thrower.Profile.IsAlive)
+                thrower = FindThrower(TeamSide.Attacker, Role.Support);
+            if (thrower != null && smokeTarget != Vector3.zero &&
+                Vector3.Distance(thrower.transform.position, smokeTarget) < Constants.UTIL_THROW_RANGE)
+                break;
+            waited += 0.5f;
+            yield return new WaitForSeconds(0.5f);
+        }
 
         if (budget >= 1 && thrower != null)
         {
-            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Smoke, GetWP(crossingSmoke)));
+            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Smoke, smokeTarget));
             yield return new WaitForSeconds(utilitySpacing);
         }
         if (budget >= 2 && thrower != null)
@@ -142,20 +153,37 @@ public class GrenadeManager : MonoBehaviour
 
     private IEnumerator CTOpeningUtility(int budget)
     {
-        yield return new WaitForSeconds(3f);
+        // Reactive denial — a molly on a timer just burns out before anyone arrives.
+        // Each choke is watched; the molly lands when enemies are ACTUALLY coming
+        // through it (footstep/contact reports feed CommsManager).
+        if (budget >= 1) StartCoroutine(ChokeDenial("WP_ACorr"));
+        if (budget >= 2) StartCoroutine(ChokeDenial("WP_BAlley"));
+        yield break;
+    }
 
-        BotController throwerA = FindThrowerNear(TeamSide.Defender, GetWP("WP_NodeA"));
-        BotController throwerB = FindThrowerNear(TeamSide.Defender, GetWP("WP_NodeB"));
+    private IEnumerator ChokeDenial(string chokeName)
+    {
+        Vector3 choke = GetWP(chokeName);
+        if (choke == Vector3.zero) yield break;
 
-        if (budget >= 1 && throwerA != null)
+        float watched = 0f;
+        while (watched < Constants.CT_CHOKE_WATCH_TIME)
         {
-            yield return StartCoroutine(ThrowGrenade(throwerA, GrenadeType.Molotov, GetWP("WP_ACorr")));
-            yield return new WaitForSeconds(utilitySpacing);
+            if (CommsManager.Instance != null &&
+                CommsManager.Instance.AnyKnownEnemyNear(TeamSide.Defender, choke, Constants.CT_CHOKE_TRIGGER_RANGE))
+            {
+                BotController thrower = FindThrowerNear(TeamSide.Defender, choke);
+                if (thrower != null)
+                {
+                    Debug.Log($"CT DENIAL: enemies heard at {chokeName} — molly incoming!");
+                    yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Molotov, choke));
+                }
+                yield break;
+            }
+            watched += 0.5f;
+            yield return new WaitForSeconds(0.5f);
         }
-        if (budget >= 2 && throwerB != null)
-        {
-            yield return StartCoroutine(ThrowGrenade(throwerB, GrenadeType.Molotov, GetWP("WP_BAlley")));
-        }
+        // Nobody came through — utility saved
     }
 
     private IEnumerator CTReactiveUtility(StrategyZone zone, int budget)

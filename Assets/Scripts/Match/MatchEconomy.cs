@@ -1,35 +1,35 @@
 using UnityEngine;
 
 /// <summary>
-/// Team Economy v2 — Proper CS-style buy logic.
-/// 
-/// KEY RULES:
-/// - Can afford Full ($4100)? → Full buy
-/// - Can't afford Full? → ECO ($500) to save for next round
-/// - EXCEPTION: Force buy ($2500) only when:
-///   - 2+ consecutive ecos already (can't keep saving forever)
-///   - Enemy at match point (must win or lose match)
-///   - After pistol round win (round 2 = force up with bonus)
-/// - Round 1 = always Eco (pistol round, only $800)
-/// - After winning = Full buy (winner gets $3250 + kills)
-/// 
-/// This creates the CS rhythm: Win → Full, Lose → Eco, Eco, Full (with loss bonus)
+/// Team Economy v3 — CS2-style with per-player loadouts.
+///
+/// The team pool = 5 players' wallets combined. The coach (player or AI)
+/// picks a buy TIER (Full/Force/Half/Eco); at loadout time each player
+/// BUYS INDIVIDUALLY from the pool with role priority (AWPer buys the AWP
+/// first on a full buy) and automatic downgrades when the pool runs dry.
+///
+/// CS rhythm this reproduces:
+/// - Round 1 pistol ($800 × 5) → winner forces round 2 (SMG/light rifles),
+///   loser ecos round 2 and buys round 3 on the loss bonus
+/// - AWP appears when the pool actually affords the $6500 slot — round 3+
+/// - Loss bonus ladder $1400→$3400 (×5 pooled), resets on a win
+/// - Plant bonus paid even on a lost round
 /// </summary>
 [System.Serializable]
 public class TeamEconomy
 {
-    public int credits = 800;
+    public int credits = Constants.TEAM_START_CREDITS;
     public int consecutiveLosses = 0;
     public BuyType currentBuyType = BuyType.Eco;
+    public BuyType recommendedBuy = BuyType.Eco; // shown to the coach as the default
 
-    // Track eco history for force-buy decisions
     public int consecutiveEcos = 0;
     public bool wonLastRound = false;
     public bool isFirstRound = true;
 
     public void AddWinReward()
     {
-        credits += Constants.WIN_REWARD;
+        credits = Mathf.Min(credits + Constants.WIN_REWARD, Constants.TEAM_CREDITS_CAP);
         consecutiveLosses = 0;
         wonLastRound = true;
     }
@@ -41,111 +41,110 @@ public class TeamEconomy
         int lossBonus = Mathf.Min(
             Constants.LOSS_BONUS_START + (consecutiveLosses - 1) * Constants.LOSS_BONUS_INCREMENT,
             Constants.LOSS_BONUS_MAX);
-        credits += lossBonus;
+        credits = Mathf.Min(credits + lossBonus, Constants.TEAM_CREDITS_CAP);
     }
 
     public void AddKillBonus(int kills)
     {
-        credits += kills * Random.Range(Constants.KILL_BONUS_MIN, Constants.KILL_BONUS_MAX + 1);
+        credits = Mathf.Min(
+            credits + kills * Random.Range(Constants.KILL_BONUS_MIN, Constants.KILL_BONUS_MAX + 1),
+            Constants.TEAM_CREDITS_CAP);
     }
 
     public void AddPlantBonus()
     {
-        credits += Constants.PLANT_BONUS;
+        credits = Mathf.Min(credits + Constants.PLANT_BONUS, Constants.TEAM_CREDITS_CAP);
     }
+
+    // ===================== BUY DECISION =====================
+
+    public int EstimateTierCost(BuyType t) => t switch
+    {
+        BuyType.Full => Constants.BUY_COST_FULL * 5,
+        BuyType.Force => Constants.BUY_COST_FORCE * 5,
+        BuyType.Half => Constants.BUY_COST_HALF * 5,
+        _ => Constants.BUY_COST_ECO * 5
+    };
+
+    public bool CanAffordTier(BuyType t) => credits >= EstimateTierCost(t);
 
     /// <summary>
-    /// Smart buy decision — mimics real CS economy flow.
+    /// Recommend a buy tier — used directly by the AI, shown as default to the coach.
     /// </summary>
-    public void ApplyBuy(int enemyScore = 0)
+    public BuyType ChooseBuy(int enemyScore)
     {
-        // Round 1 = pistol round, always eco (only $800)
-        if (isFirstRound)
-        {
-            currentBuyType = BuyType.Eco;
-            isFirstRound = false;
-            credits = Mathf.Max(credits - GetBuyCost(BuyType.Eco), 0);
-            consecutiveEcos = 0; // Pistol doesn't count as eco
-            Debug.Log($"  BUY: Pistol round → Eco (${credits} left)");
-            return;
-        }
+        if (isFirstRound) return BuyType.Eco; // pistol round
 
-        // === CAN AFFORD FULL? → FULL BUY ===
-        if (CanAfford(BuyType.Full))
-        {
-            currentBuyType = BuyType.Full;
-            consecutiveEcos = 0;
-            credits = Mathf.Max(credits - GetBuyCost(BuyType.Full), 0);
-            Debug.Log($"  BUY: Full buy (${credits} left)");
-            return;
-        }
+        if (CanAffordTier(BuyType.Full)) return BuyType.Full;
 
-        // === CAN'T AFFORD FULL — Should we eco or force? ===
+        bool mustWin = enemyScore >= Constants.ROUNDS_TO_WIN - 1; // match point — no point saving
+        bool shouldForce = mustWin || consecutiveEcos >= 1 || wonLastRound;
+        if (shouldForce && CanAffordTier(BuyType.Force)) return BuyType.Force;
+        if (shouldForce && CanAffordTier(BuyType.Half)) return BuyType.Half;
 
-        bool shouldForce = false;
-
-        // Force if: enemy at match point (12 rounds) — must win or lose match
-        if (enemyScore >= Constants.ROUNDS_TO_WIN - 1)
-            shouldForce = true;
-
-        // Force if: already eco'd 2+ rounds in a row (can't keep saving)
-        if (consecutiveEcos >= 2)
-            shouldForce = true;
-
-        // Force if: won last round (round 2 after pistol win = force with bonus money)
-        if (wonLastRound && credits >= GetBuyCost(BuyType.Force))
-            shouldForce = true;
-
-        // Force if: have enough that even after force, next round could full buy with win reward
-        // (credits - forceCost + winReward >= fullCost)
-        if (CanAfford(BuyType.Force))
-        {
-            int afterForce = credits - GetBuyCost(BuyType.Force);
-            if (afterForce + Constants.WIN_REWARD >= GetBuyCost(BuyType.Full))
-                shouldForce = true;
-        }
-
-        if (shouldForce && CanAfford(BuyType.Force))
-        {
-            currentBuyType = BuyType.Force;
-            consecutiveEcos = 0;
-            credits = Mathf.Max(credits - GetBuyCost(BuyType.Force), 0);
-            Debug.Log($"  BUY: Force buy! (${credits} left) [reason: {(enemyScore >= 12 ? "match point" : consecutiveEcos >= 2 ? "too many ecos" : "can afford")}]");
-            return;
-        }
-
-        // === ECO — Save for next round ===
-        currentBuyType = BuyType.Eco;
-        consecutiveEcos++;
-        credits = Mathf.Max(credits - GetBuyCost(BuyType.Eco), 0);
-        Debug.Log($"  BUY: ECO save (${credits} left, eco streak: {consecutiveEcos})");
+        return BuyType.Eco;
     }
 
-    public bool CanAfford(BuyType type)
+    public void SetBuy(BuyType t)
     {
-        return credits >= GetBuyCost(type);
+        currentBuyType = t;
+        if (isFirstRound) { isFirstRound = false; consecutiveEcos = 0; return; } // pistol doesn't count as eco
+        if (t == BuyType.Eco) consecutiveEcos++;
+        else consecutiveEcos = 0;
     }
 
-    public static int GetBuyCost(BuyType type)
+    // ===================== PER-PLAYER LOADOUT =====================
+
+    /// <summary>
+    /// Buy one player's weapon from the pool. Deducts credits;
+    /// downgrades automatically when the pool can't cover the tier.
+    /// AWPer should buy FIRST on a full buy so the pool affords the big green.
+    /// </summary>
+    public WeaponData.WeaponStats BuyWeaponFor(Role role)
     {
-        return type switch
+        switch (currentBuyType)
         {
-            BuyType.Full => 4100,
-            BuyType.Force => 2500,
-            BuyType.Half => 1800,
-            BuyType.Eco => 500,
-            _ => 0
-        };
+            case BuyType.Eco:
+                TrySpend(Constants.BUY_COST_ECO);
+                return WeaponData.Pistol;
+
+            case BuyType.Half:
+                if (TrySpend(Constants.BUY_COST_HALF)) return WeaponData.SMG;
+                TrySpend(Constants.BUY_COST_ECO);
+                return WeaponData.Pistol;
+
+            case BuyType.Force:
+                if (TrySpend(Constants.BUY_COST_FORCE)) return WeaponData.Rifle_Light;
+                if (TrySpend(Constants.BUY_COST_HALF)) return WeaponData.SMG;
+                TrySpend(Constants.BUY_COST_ECO);
+                return WeaponData.Pistol;
+
+            default: // Full
+                if (role == Role.AWPer && TrySpend(Constants.BUY_COST_FULL_AWP)) return WeaponData.AWP;
+                if (TrySpend(Constants.BUY_COST_FULL)) return WeaponData.Rifle;
+                if (TrySpend(Constants.BUY_COST_FORCE)) return WeaponData.Rifle_Light;
+                if (TrySpend(Constants.BUY_COST_HALF)) return WeaponData.SMG;
+                TrySpend(Constants.BUY_COST_ECO);
+                return WeaponData.Pistol;
+        }
+    }
+
+    private bool TrySpend(int cost)
+    {
+        if (credits < cost) return false;
+        credits -= cost;
+        return true;
     }
 
     public void Reset()
     {
-        credits = 800;
+        credits = Constants.TEAM_START_CREDITS;
         consecutiveLosses = 0;
         consecutiveEcos = 0;
         wonLastRound = false;
         isFirstRound = true;
         currentBuyType = BuyType.Eco;
+        recommendedBuy = BuyType.Eco;
     }
 }
 
@@ -157,6 +156,9 @@ public class MatchEconomy : MonoBehaviour
     // Track scores for match-point force buy decisions
     private int attackerScore = 0;
     private int defenderScore = 0;
+
+    public TeamEconomy GetEconomy(TeamSide side) =>
+        side == TeamSide.Attacker ? attackerEconomy : defenderEconomy;
 
     public void ProcessRoundEnd(TeamSide winner, int attackerKills, int defenderKills, bool bombPlanted)
     {
@@ -182,12 +184,27 @@ public class MatchEconomy : MonoBehaviour
         Debug.Log($"ECONOMY | T: ${attackerEconomy.credits} | CT: ${defenderEconomy.credits}");
     }
 
-    public void BuyPhase()
+    /// <summary>
+    /// Freeze-time start: the AI side commits to its buy; the player side gets a
+    /// recommendation for the coach panel. Loadouts are bought after the coach call.
+    /// </summary>
+    public void PrepareBuyPhase(TeamSide playerSide)
     {
-        // Pass enemy score so teams know if it's match point
-        attackerEconomy.ApplyBuy(defenderScore);
-        defenderEconomy.ApplyBuy(attackerScore);
+        TeamEconomy playerEcon = GetEconomy(playerSide);
+        TeamEconomy aiEcon = playerSide == TeamSide.Attacker ? defenderEconomy : attackerEconomy;
+        int playerScore = playerSide == TeamSide.Attacker ? attackerScore : defenderScore;
+        int aiScore = playerSide == TeamSide.Attacker ? defenderScore : attackerScore;
 
+        aiEcon.SetBuy(aiEcon.ChooseBuy(playerScore));
+        playerEcon.recommendedBuy = playerEcon.ChooseBuy(aiScore);
+    }
+
+    /// <summary>
+    /// Coach confirmed (or timed out with the recommendation).
+    /// </summary>
+    public void ApplyPlayerBuy(TeamSide playerSide, BuyType chosen)
+    {
+        GetEconomy(playerSide).SetBuy(chosen);
         Debug.Log($"BUY | T: {attackerEconomy.currentBuyType} (${attackerEconomy.credits}) " +
                   $"| CT: {defenderEconomy.currentBuyType} (${defenderEconomy.credits})");
     }

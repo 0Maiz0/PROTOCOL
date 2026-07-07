@@ -32,7 +32,7 @@ public static class WeaponData
         fireInterval = 0.35f,
         magazineSize = 13,
         reloadTime = 2.0f,
-        baseAccuracy = 0.65f,
+        baseAccuracy = 0.68f,
         sprayGrowth = 0.03f,
         maxSpray = 0.30f,
         rangeFalloff = 0.5f
@@ -46,7 +46,7 @@ public static class WeaponData
         fireInterval = 0.12f,
         magazineSize = 30,
         reloadTime = 2.5f,
-        baseAccuracy = 0.55f,
+        baseAccuracy = 0.62f,
         sprayGrowth = 0.04f,
         maxSpray = 0.20f,
         rangeFalloff = 0.45f
@@ -60,7 +60,7 @@ public static class WeaponData
         fireInterval = 0.11f,
         magazineSize = 25,
         reloadTime = 2.8f,
-        baseAccuracy = 0.60f,
+        baseAccuracy = 0.66f,
         sprayGrowth = 0.045f,
         maxSpray = 0.18f,
         rangeFalloff = 0.6f
@@ -74,7 +74,7 @@ public static class WeaponData
         fireInterval = 0.10f,
         magazineSize = 30,
         reloadTime = 2.5f,
-        baseAccuracy = 0.58f,
+        baseAccuracy = 0.66f,
         sprayGrowth = 0.05f,
         maxSpray = 0.15f,
         rangeFalloff = 0.7f

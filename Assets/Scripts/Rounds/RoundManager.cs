@@ -46,6 +46,7 @@ public class RoundManager : MonoBehaviour
 	private bool coachCallMade = false;
 	private bool midRoundCallMade = false;
 	private StrategyData selectedStrategy = null;
+	private BuyType selectedBuy = BuyType.Eco;
 	private string lastPlayerStrategy = "";
 
 	private void Start()
@@ -160,24 +161,29 @@ public class RoundManager : MonoBehaviour
 		if (postPlantManager != null) postPlantManager.ResetForRound();
 		if (grenadeManager != null) grenadeManager.ResetForRound();
 		if (commsManager != null) commsManager.ResetForRound();
-		economy.BuyPhase();
-		AssignBuyTypes();
-
-		if (grenadeManager != null)
-			grenadeManager.AllocateUtility(economy.attackerEconomy.currentBuyType, economy.defenderEconomy.currentBuyType);
+		// AI side commits its buy now; the coach picks the player side's tier in the panel
+		economy.PrepareBuyPhase(State.playerTeamSide);
 
 		if (observerCamera != null) observerCamera.SetOverviewMode();
 
 		coachCallMade = false;
 		selectedStrategy = null;
+		selectedBuy = economy.GetEconomy(State.playerTeamSide).recommendedBuy;
 		if (coachPanel != null)
-			coachPanel.ShowPanel(State.playerTeamSide, (strat) => { selectedStrategy = strat; coachCallMade = true; });
+			coachPanel.ShowPanel(State.playerTeamSide, economy.GetEconomy(State.playerTeamSide),
+				(strat, buy) => { selectedStrategy = strat; selectedBuy = buy; coachCallMade = true; });
 		else coachCallMade = true;
 
 		float elapsed = 0f;
 		while (!coachCallMade || elapsed < 2f)
 		{ elapsed += Time.deltaTime; yield return null; if (elapsed > 15f) { coachCallMade = true; break; } }
 		if (coachPanel != null) coachPanel.HidePanel();
+
+		// Buys resolve after the coach call: tier per team → per-player weapons from the pool
+		economy.ApplyPlayerBuy(State.playerTeamSide, selectedBuy);
+		AssignBuyTypes();
+		if (grenadeManager != null)
+			grenadeManager.AllocateUtility(economy.attackerEconomy.currentBuyType, economy.defenderEconomy.currentBuyType);
 
 		// ============ LIVE ============
 		currentPhase = RoundPhase.Live;
@@ -288,9 +294,19 @@ public class RoundManager : MonoBehaviour
 
 	private void AssignBuyTypes()
 	{
-		BuyType aB = economy.attackerEconomy.currentBuyType, dB = economy.defenderEconomy.currentBuyType;
-		foreach (var b in attackerBots) if (b?.Profile != null) b.SetBuyType(aB);
-		foreach (var b in defenderBots) if (b?.Profile != null) b.SetBuyType(dB);
+		AssignTeamLoadouts(attackerBots, economy.attackerEconomy);
+		AssignTeamLoadouts(defenderBots, economy.defenderEconomy);
+	}
+
+	private void AssignTeamLoadouts(List<BotController> bots, TeamEconomy econ)
+	{
+		// AWPer buys first so the pool can afford the big green
+		foreach (var b in bots)
+			if (b?.Profile != null && b.Profile.AssignedRole == Role.AWPer)
+				b.SetLoadout(econ.BuyWeaponFor(Role.AWPer), econ.currentBuyType);
+		foreach (var b in bots)
+			if (b?.Profile != null && b.Profile.AssignedRole != Role.AWPer)
+				b.SetLoadout(econ.BuyWeaponFor(b.Profile.AssignedRole), econ.currentBuyType);
 	}
 
 	// ===================== HALFTIME =====================

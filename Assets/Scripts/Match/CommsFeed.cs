@@ -26,25 +26,43 @@ public class CommsFeed : MonoBehaviour
 
     public static void SetPlayerSide(TeamSide side) => playerSide = side;
 
-    /// <summary>Team voice line — only heard if it's the player's team.</summary>
+    private static bool showOpponentComms = true; // C toggles — observer mode for tuning
+
+    /// <summary>
+    /// Team voice line. Your team lands in the right-side feed; the enemy's
+    /// comms go to the observer panel (toggle with C). EVERYTHING is mirrored
+    /// into the match log regardless of visibility.
+    /// </summary>
     public static void Post(string nickname, string message, TeamSide side)
     {
-        if (side != playerSide) return;
+        MatchLogger.Log($"COMMS[{side}] {nickname}: {message}");
+        if (side != playerSide)
+        {
+            if (showOpponentComms) PushOpponent($"[{nickname}] {message}");
+            return;
+        }
         Push($"[{nickname}] {message}", Color.white);
     }
 
     /// <summary>Global event line (bomb down/planted) — everyone sees it.</summary>
     public static void PostSystem(string message)
     {
+        MatchLogger.Log($"EVENT: {message}");
         Push(message, new Color(1f, 0.85f, 0.3f));
     }
 
-    /// <summary>Opponent AI decision log — the observer window into the enemy coach.</summary>
+    /// <summary>Opponent AI coach decision — the observer window into the enemy brain.</summary>
     public static void PostOpponent(string message)
+    {
+        MatchLogger.Log($"AI-COACH: {message}");
+        PushOpponent(message);
+    }
+
+    private static void PushOpponent(string text)
     {
         opponentLines.Add(new Line
         {
-            text = message,
+            text = text,
             time = Time.time,
             color = new Color(1f, 0.55f, 0.45f)
         });
@@ -61,6 +79,12 @@ public class CommsFeed : MonoBehaviour
     {
         lines.Clear();
         opponentLines.Clear();
+    }
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.C))
+            showOpponentComms = !showOpponentComms;
     }
 
     private void OnGUI()
@@ -92,7 +116,7 @@ public class CommsFeed : MonoBehaviour
                 anyOpp = true;
                 GUIStyle head = new GUIStyle(s) { fontSize = 12 };
                 head.normal.textColor = new Color(1f, 0.55f, 0.45f, 0.8f);
-                GUI.Label(new Rect(545, oy, 300, 16), "— OPPONENT AI —", head);
+                GUI.Label(new Rect(545, oy, 300, 16), "— OPPONENT [C to hide] —", head);
                 oy += 18;
             }
             Color c = opponentLines[i].color;

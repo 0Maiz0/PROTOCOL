@@ -98,6 +98,8 @@ public class RoundManager : MonoBehaviour
 		intro.Show("YOUR SQUAD",
 			CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "OPPONENT");
 
+		MatchLogger.StartMatch(CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "standalone");
+
 		if (attackerEquipment == null) attackerEquipment = ScriptableObject.CreateInstance<EquipmentBonuses>();
 		if (defenderEquipment == null) defenderEquipment = ScriptableObject.CreateInstance<EquipmentBonuses>();
 
@@ -169,6 +171,8 @@ public class RoundManager : MonoBehaviour
 			}
 		}
 		Debug.Log($"========== {State.matchWinner} WINS {State.attackerScore}-{State.defenderScore} ==========");
+		MatchLogger.EndMatch($"{State.matchWinner} wins {State.attackerScore}-{State.defenderScore} " +
+			$"({(State.matchWinner == State.playerTeamSide ? "PLAYER VICTORY" : "OPPONENT VICTORY")})");
 
 		// Career hook: report result and return home after the win screen
 		if (CareerManager.Instance != null)
@@ -193,6 +197,8 @@ public class RoundManager : MonoBehaviour
 		if (grenadeManager != null) grenadeManager.ResetForRound();
 		if (commsManager != null) commsManager.ResetForRound();
 		CommsFeed.Clear();
+		MatchLogger.StartRound(State.currentRound,
+			$"T {State.attackerScore}-{State.defenderScore} CT | player is {State.playerTeamSide}");
 		if (bombManager != null) bombManager.AssignCarrier(attackerBots);
 		// THE TEAM PLAYS, THE COACH WATCHES: the IGL calls buy + strategy.
 		// A tactical timeout hands this one round back to the coach.
@@ -242,6 +248,9 @@ public class RoundManager : MonoBehaviour
 		AssignBuyTypes();
 		if (grenadeManager != null)
 			grenadeManager.AllocateUtility(economy.attackerEconomy.currentBuyType, economy.defenderEconomy.currentBuyType);
+		MatchLogger.Log($"BUY: T {economy.attackerEconomy.currentBuyType} (${economy.attackerEconomy.credits}) | " +
+			$"CT {economy.defenderEconomy.currentBuyType} (${economy.defenderEconomy.credits})" +
+			(timeoutRound ? " | COACH TIMEOUT ROUND" : ""));
 
 		// ============ LIVE ============
 		currentPhase = RoundPhase.Live;
@@ -259,6 +268,7 @@ public class RoundManager : MonoBehaviour
 			var playerBots = (State.playerTeamSide == TeamSide.Attacker) ? attackerBots : defenderBots;
 			strategyExecutor.ExecuteStrategy(selectedStrategy, playerBots, State.playerTeamSide);
 			if (grenadeManager != null) grenadeManager.OnStrategyExecuted(selectedStrategy, State.playerTeamSide);
+			MatchLogger.Log($"STRAT[player/{State.playerTeamSide}]: {selectedStrategy.strategyName.Trim()} ({selectedStrategy.type})");
 		}
 
 		StrategyData aiStrategy = null;
@@ -266,7 +276,8 @@ public class RoundManager : MonoBehaviour
 		{
 			TeamSide aiSide = (State.playerTeamSide == TeamSide.Attacker) ? TeamSide.Defender : TeamSide.Attacker;
 			var aiBots = (aiSide == TeamSide.Defender) ? defenderBots : attackerBots;
-			aiStrategy = aiCoach.PickAndExecute(aiSide, aiBots);
+			aiStrategy = aiCoach.PickAndExecute(aiSide, aiBots, playerRoster,
+				economy.GetEconomy(State.playerTeamSide).currentBuyType);
 			if (grenadeManager != null && aiStrategy != null)
 				grenadeManager.OnStrategyExecuted(aiStrategy, aiSide);
 		}
@@ -297,6 +308,10 @@ public class RoundManager : MonoBehaviour
 			iglBrain.OnRoundResult(winner == State.playerTeamSide, selectedStrategy);
 
 		Debug.Log($"ROUND WINNER: {winner} | {State.attackerScore}-{State.defenderScore}");
+		MatchLogger.Log($"ROUND END: {winner} wins ({(winner == State.playerTeamSide ? "PLAYER" : "OPPONENT")}) | " +
+			$"score T {State.attackerScore}-{State.defenderScore} CT | alive T:{attackersAlive} CT:{defendersAlive} | " +
+			$"bomb: {(bombManager != null ? bombManager.CurrentState.ToString() : "n/a")}");
+		MatchLogger.Flush();
 		ResetRoundKills();
 		yield return new WaitForSeconds(Constants.POST_ROUND_DELAY);
 	}

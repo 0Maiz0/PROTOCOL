@@ -232,18 +232,18 @@ public class BotController : MonoBehaviour
         if (CommsManager.Instance.GetNearbyHelpRequest(this, out Vector3 helpPos))
         { SeekPosition(helpPos); return; }
 
-        if (Side == TeamSide.Attacker)
+        if (CommsManager.Instance.GetNearestKnownEnemy(this, out Vector3 ep))
         {
-            if (CommsManager.Instance.GetNearestKnownEnemy(this, out Vector3 ep))
-                SeekPosition(ep);
-        }
-        else
-        {
-            if (CommsManager.Instance.GetNearestKnownEnemy(this, out Vector3 ep))
-            {
-                if (Vector3.Distance(transform.position, ep) < 15f)
-                    SeekPosition(ep);
-            }
+            // CT hold their area — only chase close info
+            if (Side == TeamSide.Defender && Vector3.Distance(transform.position, ep) > 15f)
+                return;
+
+            // Dry-peek discipline: don't walk alone into a known stack
+            if (CommsManager.Instance.CountKnownEnemiesNear(Side, ep, 12f) >= 2 &&
+                !EngagementSystem.HasFriendlySupportNear(this, 12f))
+                return;
+
+            SeekPosition(ep);
         }
     }
 

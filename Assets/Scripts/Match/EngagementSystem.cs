@@ -158,8 +158,24 @@ public class EngagementSystem : MonoBehaviour
             if (myBot.Profile.AssignedRole == Role.AWPer)
                 return;
 
+            // Dry-peek discipline: 2+ known enemies there and nobody with me — don't feed
+            if (CommsManager.Instance.CountKnownEnemiesNear(myBot.Side, enemyPos, 12f) >= 2 &&
+                !HasFriendlySupportNear(myBot, 12f))
+                return;
+
             MoveToward(enemyPos);
         }
+    }
+
+    /// <summary>Is a living teammate close enough to trade for this bot?</summary>
+    public static bool HasFriendlySupportNear(BotController bot, float range)
+    {
+        foreach (var s in allSystems)
+            if (s.myBot != null && s.myBot != bot && s.myBot.Profile != null &&
+                s.myBot.Side == bot.Side && s.myBot.Profile.IsAlive &&
+                Vector3.Distance(bot.transform.position, s.transform.position) < range)
+                return true;
+        return false;
     }
 
     private void MoveToward(Vector3 position)
@@ -393,7 +409,13 @@ public class EngagementSystem : MonoBehaviour
             bool killed = currentTarget.Profile.TakeDamage(damage);
             if (headshot && killed)
                 Debug.Log($"HEADSHOT: {profile.Data.nickname} one-taps {currentTarget.Profile.Data.nickname}!");
-            if (killed) OnTargetKilled(currentTarget);
+            if (killed)
+            {
+                MatchLogger.Log($"KILL: {profile.Data.nickname} ({myBot.Side}) [{profile.CurrentWeapon.weaponName}] -> " +
+                    $"{currentTarget.Profile.Data.nickname}{(headshot ? " HEADSHOT" : "")}" +
+                    $"{(currentTarget.Profile.IsBlinded ? " (victim FLASHED)" : "")} dist {distance:0}m");
+                OnTargetKilled(currentTarget);
+            }
             else if (currentTarget.TryGetComponent(out EngagementSystem victim))
                 victim.OnDamagedBy(myBot);
         }

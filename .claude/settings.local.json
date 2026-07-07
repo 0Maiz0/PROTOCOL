@@ -16,7 +16,8 @@
       "Bash(git commit --quiet -m 'Playtest #5: real flash blinding, smart flash targeting, clutch flash-peek, map generator *)",
       "Bash(git commit --quiet -m 'Old map by default, opponent AI log, friendly-flash fix, animated main menu + match intro *)",
       "Bash(git commit --quiet -m 'Add Unity meta files for MainMenu, MatchIntro and UI folder *)",
-      "Bash(git commit --quiet -m 'Playtest #6: halftime side swap fix, IGL v3 with personality, AWP discipline, side weapons *)"
+      "Bash(git commit --quiet -m 'Playtest #6: halftime side swap fix, IGL v3 with personality, AWP discipline, side weapons *)",
+      "Bash(git commit --quiet -m 'Playtest #7: match telemetry log, enemy AI parity, opponent comms visible, dry-peek discipline *)"
     ]
   }
 }

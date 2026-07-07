@@ -393,6 +393,7 @@ public class GrenadeManager : MonoBehaviour
             yield break;
         if (!SafeForTeammates(type, target, thrower)) yield break; // never nade your own guys
         if (!TrySpendNade(thrower.Side)) yield break; // shared team inventory
+        MatchLogger.Log($"NADE: {thrower.Profile.Data.nickname} ({thrower.Side}) throws {type}");
 
         TeamSide throwerSide = thrower.Side; // capture — thrower can die mid-flight
         Vector3 start = thrower.transform.position + Vector3.up * 1.5f;

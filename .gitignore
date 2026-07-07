@@ -37,3 +37,6 @@ desktop.ini
 sysinfo.txt
 *.stackdump
 crashlytics-build.properties
+
+# ===== Match telemetry (read by Claude, not versioned) =====
+[Mm]atch[Ll]ogs/

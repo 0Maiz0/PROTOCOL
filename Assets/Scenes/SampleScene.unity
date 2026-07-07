@@ -4371,6 +4371,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ObserverCamera
   overviewPosition: {x: 40, y: 45, z: 25}
   overviewRotation: {x: 90, y: 0, z: 0}
+  povMode: 1
   followHeight: 3
   followDistance: 3
   smoothSpeed: 8
@@ -5067,12 +5068,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 381372996}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.53833, y: -0, z: 1.21466}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -29.724628, y: 6.5436015, z: -16.15052}
+  m_LocalScale: {x: 0.827692, y: 0.6067317, z: 0.8055388}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1059153480}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &381372999
 MonoBehaviour:
@@ -5090,6 +5091,7 @@ MonoBehaviour:
     credits: 800
     consecutiveLosses: 0
     currentBuyType: 3
+    recommendedBuy: 3
     consecutiveEcos: 0
     wonLastRound: 0
     isFirstRound: 1
@@ -5097,6 +5099,7 @@ MonoBehaviour:
     credits: 800
     consecutiveLosses: 0
     currentBuyType: 3
+    recommendedBuy: 3
     consecutiveEcos: 0
     wonLastRound: 0
     isFirstRound: 1
@@ -5197,6 +5200,7 @@ MonoBehaviour:
   grenadeManager: {fileID: 381373010}
   commsManager: {fileID: 0}
   playerHUD: {fileID: 381373011}
+  iglBrain: {fileID: 0}
   attackerSpawns:
   - {fileID: 1457539223}
   - {fileID: 104104197}
@@ -5242,6 +5246,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AICoach
   strategyExecutor: {fileID: 381373014}
   bombManager: {fileID: 381373002}
+  grenadeManager: {fileID: 0}
   ctStrategies:
   - {fileID: 11400000, guid: 34402592f405adc4c9ea3897274afe07, type: 2}
   - {fileID: 11400000, guid: d7fde1a1cd2d9234397d6d7bb8fc808b, type: 2}
@@ -14849,6 +14854,7 @@ Transform:
   - {fileID: 83809203}
   - {fileID: 1834991807}
   - {fileID: 1468305880}
+  - {fileID: 381372998}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1060814588
@@ -28259,7 +28265,6 @@ SceneRoots:
   m_Roots:
   - {fileID: 330585546}
   - {fileID: 832575519}
-  - {fileID: 381372998}
   - {fileID: 1059153480}
   - {fileID: 79144979}
   - {fileID: 379762695}

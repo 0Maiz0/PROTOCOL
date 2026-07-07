@@ -46,6 +46,14 @@ public class AICoach : MonoBehaviour
     private float evalTimer;
     private float rotateCooldown;
 
+    // T-side game-state brain (parity with the player's IGL)
+    private List<BotController> enemyBots;
+    private BuyType currentEnemyBuy = BuyType.Full;
+    private float roundStartTime;
+    private float atkEvalTimer;
+    private float lastPlantPushTime;
+    private bool saveCalled;
+
     private void Start()
     {
         if (bombManager != null)
@@ -90,6 +98,88 @@ public class AICoach : MonoBehaviour
                 EvaluateDefense();
             }
         }
+
+        // T-side game state: plant pushes and saves — parity with the player's IGL,
+        // so 4v1 rounds where the AI forgets the bomb exists don't happen either way
+        if (currentAiSide == TeamSide.Attacker && currentBots != null)
+        {
+            atkEvalTimer -= Time.deltaTime;
+            if (atkEvalTimer <= 0f)
+            {
+                atkEvalTimer = Constants.CT_EVAL_INTERVAL;
+                EvaluateAIAttack();
+            }
+        }
+    }
+
+    // ===================== T-SIDE GAME STATE =====================
+
+    private void EvaluateAIAttack()
+    {
+        if (bombManager == null || bombManager.IsPlanted || bombManager.IsExploded) return;
+
+        int mine = CountAliveBots(currentBots);
+        int theirs = CountAliveBots(enemyBots);
+        if (mine == 0) return;
+        float elapsed = Time.time - roundStartTime;
+
+        // Round is lost — save the guns
+        if (!saveCalled && mine <= 2 && theirs - mine >= 2 && elapsed > 30f)
+        {
+            saveCalled = true;
+            CommsFeed.PostOpponent("numbers are bad — saving the guns");
+            SendAITeamTo("WP_TopAxis", false);
+            return;
+        }
+
+        // Man advantage or burning clock and no plant — take a site NOW
+        bool manAdvantage = mine - theirs >= 2 && elapsed > 20f;
+        bool clockBurning = elapsed > 50f;
+        if ((manAdvantage || clockBurning) && Time.time - lastPlantPushTime > 20f)
+        {
+            lastPlantPushTime = Time.time;
+            string wpName = PickOpenSiteWP(out string site);
+            CommsFeed.PostOpponent(manAdvantage
+                ? $"man advantage — committing {site}, planting"
+                : $"clock's burning — hitting {site} now");
+            SendAITeamTo(wpName, true);
+        }
+    }
+
+    private string PickOpenSiteWP(out string site)
+    {
+        GameObject aWP = GameObject.Find("WP_NodeA"), bWP = GameObject.Find("WP_NodeB");
+        int sigA = 0, sigB = 0;
+        if (CommsManager.Instance != null)
+        {
+            if (aWP != null) sigA = CommsManager.Instance.CountKnownEnemiesNear(currentAiSide, aWP.transform.position, Constants.CT_SIGNAL_RANGE);
+            if (bWP != null) sigB = CommsManager.Instance.CountKnownEnemiesNear(currentAiSide, bWP.transform.position, Constants.CT_SIGNAL_RANGE);
+        }
+        bool goA = sigA <= sigB;
+        site = goA ? "A" : "B";
+        return goA ? "WP_NodeA" : "WP_NodeB";
+    }
+
+    private void SendAITeamTo(string wpName, bool bypassHazards)
+    {
+        GameObject wp = GameObject.Find(wpName);
+        if (wp == null) return;
+        foreach (var b in currentBots)
+        {
+            if (b?.Profile == null || !b.Profile.IsAlive) continue;
+            b.HazardBypass = bypassHazards;
+            b.AssignWaypoints(new Transform[] { wp.transform });
+            b.StartExecuting();
+        }
+    }
+
+    private int CountAliveBots(List<BotController> bots)
+    {
+        if (bots == null) return 0;
+        int c = 0;
+        foreach (var b in bots)
+            if (b?.Profile != null && b.Profile.IsAlive) c++;
+        return c;
     }
 
     // ===================== CT INFO REACTIONS =====================
@@ -164,14 +254,21 @@ public class AICoach : MonoBehaviour
     /// Pick and execute a strategy for the AI team.
     /// Called by RoundManager at round start.
     /// </summary>
-    public StrategyData PickAndExecute(TeamSide aiSide, List<BotController> bots)
+    public StrategyData PickAndExecute(TeamSide aiSide, List<BotController> bots,
+        List<BotController> enemies = null, BuyType enemyBuy = BuyType.Full)
     {
         currentBots = bots;
         currentAiSide = aiSide;
+        enemyBots = enemies;
+        currentEnemyBuy = enemyBuy;
         hasRotated = false;
         bombPlantDetected = false;
         rotateCooldown = 6f; // settle into positions before reacting to info
         evalTimer = Constants.CT_EVAL_INTERVAL;
+        roundStartTime = Time.time;
+        atkEvalTimer = Constants.CT_EVAL_INTERVAL;
+        lastPlantPushTime = -100f;
+        saveCalled = false;
 
         StrategyData[] available = (aiSide == TeamSide.Defender) ? ctStrategies : tStrategies;
 
@@ -249,6 +346,11 @@ public class AICoach : MonoBehaviour
                 if (available[i].type == StrategyType.Rush || available[i].type == StrategyType.Execute)
                     w += 1.5f;
             }
+
+            // Anti-eco read: they're broke — rush them down, no free picks
+            if ((currentEnemyBuy == BuyType.Eco || currentEnemyBuy == BuyType.Half) &&
+                (available[i].type == StrategyType.Rush || available[i].type == StrategyType.Execute))
+                w += 1.2f;
 
             // Default/standard gets a small base boost (reliable)
             if (available[i].type == StrategyType.Default || available[i].type == StrategyType.Control)

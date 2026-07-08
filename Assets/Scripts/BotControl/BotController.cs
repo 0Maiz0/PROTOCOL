@@ -240,8 +240,8 @@ public class BotController : MonoBehaviour
 
         if (CommsManager.Instance.GetNearestKnownEnemy(this, out Vector3 ep))
         {
-            // CT hold their area — only chase close info
-            if (Side == TeamSide.Defender && Vector3.Distance(transform.position, ep) > 15f)
+            // CT hold — rotations come from the IGL, not from bots freelancing
+            if (Side == TeamSide.Defender)
                 return;
 
             // Dry-peek discipline: don't walk alone into a known stack

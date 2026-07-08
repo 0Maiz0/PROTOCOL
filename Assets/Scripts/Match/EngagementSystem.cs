@@ -151,8 +151,9 @@ public class EngagementSystem : MonoBehaviour
         {
             float dist = Vector3.Distance(transform.position, enemyPos);
 
-            // CT don't push far from their position (hold site)
-            if (myBot.Side == TeamSide.Defender && dist > 15f)
+            // CT HOLD — they pre-aim intel via scan points and shoot from position;
+            // chasing info made them wander instead of holding angles
+            if (myBot.Side == TeamSide.Defender)
                 return;
 
             // AWP doesn't chase — holds position
@@ -243,6 +244,14 @@ public class EngagementSystem : MonoBehaviour
         // Cover: only T-side rifle in open
         if (ShouldSeekCover() && coverBehavior != null)
             coverBehavior.StartCombatCover(target.transform);
+    }
+
+    private int CountAliveEnemies()
+    {
+        int c = 0;
+        foreach (var s in allSystems)
+            if (s.myBot?.Profile != null && s.myBot.Side != myBot.Side && s.myBot.Profile.IsAlive) c++;
+        return c;
     }
 
     private bool IsInClutch()
@@ -494,6 +503,17 @@ public class EngagementSystem : MonoBehaviour
         }
 
         victim.Die();
+
+        // ===== HIGHLIGHT MOMENTS — the edge factor. Broky's 4k deserves a shoutout =====
+        int rk = myBot.Profile.RoundKills;
+        string nick = myBot.Profile.Data.nickname;
+        if (rk == 3) CommsFeed.PostSystem($"TRIPLE KILL — {nick} is heating up!");
+        else if (rk == 4) CommsFeed.PostSystem($"QUAD KILL — {nick} IS UNSTOPPABLE!");
+        else if (rk == 5) CommsFeed.PostSystem($"A C E !!! {nick}!!!");
+
+        // Was fighting as the last man standing and just dropped the last enemy
+        if (clutchFactor != 1f && CountAliveEnemies() == 0)
+            CommsFeed.PostSystem($"CLUTCH — {nick} WINS IT ALONE!");
 
         // Comms: report kill
         if (CommsManager.Instance != null)

@@ -20,7 +20,9 @@
       "Bash(git commit --quiet -m 'Playtest #7: match telemetry log, enemy AI parity, opponent comms visible, dry-peek discipline *)",
       "Bash(git commit --quiet -m 'Playtest #8 \\(first log-driven review\\): stale scene economy, desperation force, HS-rate tune *)",
       "Bash(git commit --quiet -m 'Playtest #9: combat-first discipline, weapon carryover + pickups, AWP round 3+ *)",
-      "Bash(git commit --quiet -m 'Fix round-1 AKs \\(carryover captured spawn defaults\\) + engagement shift *)"
+      "Bash(git commit --quiet -m 'Fix round-1 AKs \\(carryover captured spawn defaults\\) + engagement shift *)",
+      "Bash(awk '{print $1}')",
+      "Bash(git commit --quiet -m 'Playtest #11 \\(log-driven\\): CT stacks actually form, hold discipline, proximity utility, highlight moments *)"
     ]
   }
 }

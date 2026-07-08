@@ -183,15 +183,14 @@ public class GrenadeManager : MonoBehaviour
         string entryFlash = zone == StrategyZone.NodeA ? "WP_NodeA" : "WP_NodeB";
         Vector3 smokeTarget = GetWP(crossingSmoke);
 
-        // Just-in-time: wait until the pack actually approaches the cross —
-        // a smoke thrown from spawn fades before anyone uses it
-        BotController thrower = FindThrower(TeamSide.Attacker, Role.Support);
+        // Just-in-time: wait until someone (Support preferred) is actually near
+        // the cross — a smoke thrown from spawn fades before anyone uses it
+        BotController thrower = null;
         float waited = 0f;
         while (waited < Constants.UTIL_JIT_TIMEOUT)
         {
-            if (thrower == null || !thrower.Profile.IsAlive)
-                thrower = FindThrower(TeamSide.Attacker, Role.Support);
-            if (thrower != null && smokeTarget != Vector3.zero &&
+            thrower = PickThrower(TeamSide.Attacker, Role.Support, smokeTarget);
+            if (thrower != null &&
                 Vector3.Distance(thrower.transform.position, smokeTarget) < Constants.UTIL_THROW_RANGE)
                 break;
             waited += 0.5f;
@@ -219,32 +218,35 @@ public class GrenadeManager : MonoBehaviour
         else
         { site = "WP_Axis"; rotCut = "WP_Axis"; holdSpot = "WP_Axis"; }
 
-        // Multiple bots throw — Support smokes, IGL mollys, Entry flashes
-        BotController smoker = FindThrower(TeamSide.Attacker, Role.Support);
-        BotController mollyer = FindThrower(TeamSide.Attacker, Role.IGL) ?? smoker;
-        BotController flasher = FindThrower(TeamSide.Attacker, Role.Entry) ?? smoker;
+        // Targets first, then throwers by PROXIMITY (role preferred) —
+        // no more cross-map mortars from the B player onto A
+        Vector3 cutTarget = GetWP(rotCut);
+        Vector3 mollyTarget = GetWP(holdSpot);
+        if (CommsManager.Instance != null &&
+            CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, GetWP(site), 14f, out Vector3 camper))
+            mollyTarget = camper;
+        Vector3 siteFlash = GetWP(site);
+        if (CommsManager.Instance != null &&
+            CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, GetWP(site), 14f, out Vector3 knownCT))
+            siteFlash = knownCT;
+
+        BotController smoker = PickThrower(TeamSide.Attacker, Role.Support, cutTarget);
+        BotController mollyer = PickThrower(TeamSide.Attacker, Role.IGL, mollyTarget);
+        BotController flasher = PickThrower(TeamSide.Attacker, Role.Entry, siteFlash);
 
         // 1. Smoke rotation cut
         if (budget >= 1 && smoker != null)
         {
-            yield return StartCoroutine(ThrowGrenade(smoker, GrenadeType.Smoke, GetWP(rotCut)));
+            yield return StartCoroutine(ThrowGrenade(smoker, GrenadeType.Smoke, cutTarget));
             yield return new WaitForSeconds(utilitySpacing);
         }
         // 2. Molly the hold spot — or the KNOWN camper if comms has one near the site
         if (budget >= 2 && mollyer != null)
         {
-            Vector3 mollyTarget = GetWP(holdSpot);
-            if (CommsManager.Instance != null &&
-                CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, GetWP(site), 14f, out Vector3 camper))
-                mollyTarget = camper;
             yield return StartCoroutine(ThrowGrenade(mollyer, GrenadeType.Molotov, mollyTarget));
             yield return new WaitForSeconds(utilitySpacing);
         }
         // 3. Flash site — at the KNOWN holder if comms has one
-        Vector3 siteFlash = GetWP(site);
-        if (CommsManager.Instance != null &&
-            CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, GetWP(site), 14f, out Vector3 knownCT))
-            siteFlash = knownCT;
         if (budget >= 3 && flasher != null)
         {
             yield return StartCoroutine(ThrowGrenade(flasher, GrenadeType.Flash, siteFlash));
@@ -392,6 +394,8 @@ public class GrenadeManager : MonoBehaviour
         if (thrower == null || !thrower.Profile.IsAlive || target == Vector3.zero)
             yield break;
         if (!SafeForTeammates(type, target, thrower)) yield break; // never nade your own guys
+        if (Vector3.Distance(thrower.transform.position, target) > Constants.UTIL_MAX_THROW_RANGE)
+            yield break; // out of throw range — no cross-map mortars
         if (!TrySpendNade(thrower.Side)) yield break; // shared team inventory
         MatchLogger.Log($"NADE: {thrower.Profile.Data.nickname} ({thrower.Side}) throws {type}");
 
@@ -498,6 +502,29 @@ public class GrenadeManager : MonoBehaviour
     }
 
     // ===================== FIND THROWER =====================
+
+    /// <summary>
+    /// Thrower by PROXIMITY to the target: preferred role if within throw range,
+    /// else the nearest teammate in range, else nobody (skip the nade).
+    /// </summary>
+    private BotController PickThrower(TeamSide side, Role preferred, Vector3 target)
+    {
+        var bots = side == TeamSide.Attacker ? attackerBots : defenderBots;
+        if (bots == null || target == Vector3.zero) return null;
+
+        BotController rolePick = null, nearest = null;
+        float best = float.MaxValue;
+        foreach (var b in bots)
+        {
+            if (b?.Profile == null || !b.Profile.IsAlive) continue;
+            float d = Vector3.Distance(b.transform.position, target);
+            if (b.Profile.AssignedRole == preferred && d <= Constants.UTIL_MAX_THROW_RANGE)
+                rolePick = b;
+            if (d < best) { best = d; nearest = b; }
+        }
+        if (rolePick != null) return rolePick;
+        return best <= Constants.UTIL_MAX_THROW_RANGE ? nearest : null;
+    }
 
     /// <summary>Find alive bot of given side and preferred role to throw the nade.</summary>
     private BotController FindThrower(TeamSide side, Role preferredRole)

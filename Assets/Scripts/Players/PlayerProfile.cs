@@ -132,9 +132,10 @@ public class PlayerProfile
     {
         var weapon = CurrentWeapon;
 
-        // Base: weapon accuracy * (aim/100)
+        // Steeper aim curve — the edge factor: a 90-aim star visibly
+        // out-shoots a 60-aim body (was 0.5+aim*0.5: only ~19% spread)
         float aimFactor = EffectiveAim / 100f;
-        float hitChance = weapon.baseAccuracy * (0.5f + aimFactor * 0.5f);
+        float hitChance = weapon.baseAccuracy * (0.30f + aimFactor * 0.70f);
 
         // Spray penalty — accuracy degrades the more you fire continuously
         float sprayPenalty = Mathf.Clamp01(1f - SprayCounter);

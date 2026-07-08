@@ -114,7 +114,8 @@ public static class Constants
     public const float UTIL_THROW_RANGE = 25f;    // rush smoke thrown when pack is this close
     public const float UTIL_JIT_TIMEOUT = 20f;    // give up waiting and throw anyway
     public const float CT_CHOKE_WATCH_TIME = 40f; // how long CT watches a choke for denial molly
-    public const float CT_CHOKE_TRIGGER_RANGE = 15f; // known enemy this close to choke → molly it
+    public const float CT_CHOKE_TRIGGER_RANGE = 24f; // trigger EARLY — flight time made mollies land behind the rush
+    public const float UTIL_MAX_THROW_RANGE = 32f;   // nobody lobs a nade across the whole map
 
     // CT defensive brain (playtest #2)
     public const float CT_EVAL_INTERVAL = 2f;     // how often the AI CT re-reads comms info

@@ -181,13 +181,14 @@ public class IGLBrain : MonoBehaviour
     {
         if (myBots == null || igl == null || igl.Profile == null || igl.IsFrozen) return;
 
-        // Commit timing on executes. Dead IGL → the team eventually goes in
-        // on its own, later and messier — that's why you protect the caller.
-        if (mySide == TeamSide.Attacker && commitCo == null &&
-            strategyExecutor != null && strategyExecutor.HasStagedBots(mySide))
+        // Commit timing. T executes wait for the call; CT Control/stack strats
+        // must commit FAST — staged CTs were standing one waypoint short of
+        // their stack positions forever (the "I never saw a stack" bug).
+        if (commitCo == null && strategyExecutor != null && strategyExecutor.HasStagedBots(mySide))
         {
             bool voiced = igl.Profile.IsAlive;
-            float delay = voiced ? Mathf.Lerp(16f, 9f, Leadership) : 8f;
+            float delay = mySide == TeamSide.Defender ? 4f
+                        : voiced ? Mathf.Lerp(16f, 9f, Leadership) : 8f;
             commitCo = StartCoroutine(CallExecute(delay, voiced));
         }
 
@@ -214,6 +215,15 @@ public class IGLBrain : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
         if (strategyExecutor == null || !strategyExecutor.HasStagedBots(mySide)) yield break;
+
+        // CT: no utility barrage — just settle into the final hold positions
+        if (mySide == TeamSide.Defender)
+        {
+            if (voiced && igl?.Profile != null && igl.Profile.IsAlive)
+                Voice("get set — final positions, hold your angles");
+            strategyExecutor.CommitStagedBots(mySide);
+            yield break;
+        }
 
         if (voiced && igl?.Profile != null && igl.Profile.IsAlive)
             Voice(Flavor("EXECUTE EXECUTE — GO GO GO!",

@@ -118,7 +118,13 @@ public class RoundManager : MonoBehaviour
 		StartCoroutine(MatchLoop());
 	}
 
-	private void OnDestroy() => EngagementSystem.OnDuelResolved -= OnDuelResolved;
+	private void OnDestroy()
+	{
+		EngagementSystem.OnDuelResolved -= OnDuelResolved;
+		MatchLogger.Flush(); // quitting mid-round used to discard that round entirely
+	}
+
+	private void OnApplicationQuit() => MatchLogger.Flush();
 
 	private void Update()
 	{

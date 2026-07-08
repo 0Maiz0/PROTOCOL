@@ -113,7 +113,7 @@ public static class Constants
     public const float SITE_EXECUTE_RADIUS = 14f;   // bots inside this of a site = already executing
 
     // Utility timing (playtest #2)
-    public const float UTIL_THROW_RANGE = 25f;    // rush smoke thrown when pack is this close
+    public const float UTIL_THROW_RANGE = 40f;    // rush smoke must LAND before contact (log: smoke 20.0s, first duel 21.5s)
     public const float UTIL_JIT_TIMEOUT = 20f;    // give up waiting and throw anyway
     public const float CT_CHOKE_WATCH_TIME = 40f; // how long CT watches a choke for denial molly
     public const float CT_CHOKE_TRIGGER_RANGE = 24f; // trigger EARLY — flight time made mollies land behind the rush

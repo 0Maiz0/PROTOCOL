@@ -107,6 +107,8 @@ public static class Constants
     public const float RELOAD_RETREAT_RANGE = 14f;  // enemy this close while reloading → back off
     public const float FIRST_BULLET_HS_MULT = 1.6f; // opening shot is aimed head-level
     public const float MOLOTOV_DPS = 55f; // real fire — crossing costs ~60HP (scene had stale 30)
+    public const float TARGET_MOVE_PENALTY = 0.85f;     // runners are harder to hit
+    public const float TARGET_MOVE_PENALTY_AWP = 0.6f;  // and nearly unsnipable (no more 45m runner picks)
     public const float PANIC_SMOKE_HP = 50f;        // below this + outnumbered → self-smoke
     public const float SITE_EXECUTE_RADIUS = 14f;   // bots inside this of a site = already executing
 

@@ -88,8 +88,11 @@ public class IGLBrain : MonoBehaviour
 
     private void Voice(string message)
     {
-        if (igl?.Profile?.Data != null)
-            CommsFeed.Post($"{igl.Profile.Data.nickname} (IGL)", message, mySide);
+        // Dead IGL → whoever's alive makes the call (leaderless fallback)
+        var speaker = (igl?.Profile != null && igl.Profile.IsAlive) ? igl : FirstAlive();
+        if (speaker?.Profile?.Data == null) return;
+        string tag = speaker == igl ? " (IGL)" : "";
+        CommsFeed.Post($"{speaker.Profile.Data.nickname}{tag}", message, mySide);
     }
 
     // ===================== OPENING CALL =====================
@@ -192,11 +195,10 @@ public class IGLBrain : MonoBehaviour
             commitCo = StartCoroutine(CallExecute(delay, voiced));
         }
 
-        if (!igl.Profile.IsAlive) return;
-
         evalTimer -= Time.deltaTime;
         if (mySide == TeamSide.Defender)
         {
+            if (!igl.Profile.IsAlive) return; // dead IGL: no defensive reads/rotations
             if (rotateCooldown > 0f) rotateCooldown -= Time.deltaTime;
             if (evalTimer <= 0f)
             {
@@ -206,6 +208,8 @@ public class IGLBrain : MonoBehaviour
         }
         else if (evalTimer <= 0f)
         {
+            // Plant pushes/saves run even with a dead IGL — R06: carrier AND
+            // IGL died at 11s and three Ts wandered 80s without planting
             evalTimer = Constants.CT_EVAL_INTERVAL;
             EvaluateAttack();
         }
@@ -342,6 +346,20 @@ public class IGLBrain : MonoBehaviour
 
     private void EvaluateDefense()
     {
+        // Hold is hopeless (badly outnumbered pre-plant) — save the guns,
+        // carryover makes this real money next round
+        if (!saveCalled && bombManager != null && !bombManager.IsPlanted)
+        {
+            int mine = CountAlive(myBots), theirs = CountAlive(enemyBots);
+            if (mine > 0 && mine <= 2 && theirs - mine >= 2 && Time.time - roundStartTime > 40f)
+            {
+                saveCalled = true;
+                Voice(Flavor("we can't hold this — save the guns", "dead round — keep the rifles, exit", "save call — regroup, next one's ours"));
+                SendTeamTo("WP_Garden", bypassHazards: false);
+                return;
+            }
+        }
+
         if (rotateCooldown > 0f || CommsManager.Instance == null) return;
         GameObject aWP = GameObject.Find("WP_NodeA"), bWP = GameObject.Find("WP_NodeB");
         if (aWP == null || bWP == null) return;

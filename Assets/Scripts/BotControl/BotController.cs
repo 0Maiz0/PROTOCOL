@@ -158,6 +158,11 @@ public class BotController : MonoBehaviour
 
     private void AvoidMolotov()
     {
+        // Committed pushes (retake, defuse rush) accept the burn — the escape
+        // reflex was yanking CTs OFF the bomb site away from their own molly
+        // while the bomb ticked down (R12: exploded with 3 CTs alive)
+        if (HazardBypass) return;
+
         // Static registry — FindObjectsByType every 0.5s per bot was a hot-path scan
         var effects = GrenadeEffect.ActiveEffects;
         for (int i = 0; i < effects.Count; i++)

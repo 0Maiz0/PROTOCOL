@@ -449,6 +449,13 @@ public class EngagementSystem : MonoBehaviour
         }
 
         float hitChance = Mathf.Min(profile.CalculateHitChance(distance) * movePenalty * clutchFactor, 0.98f);
+
+        // Runners are hard to hit — especially through a scope
+        if (currentTarget.Agent != null && currentTarget.Agent.velocity.magnitude > 3f)
+            hitChance *= profile.CurrentWeapon.weaponName == "AWP"
+                ? Constants.TARGET_MOVE_PENALTY_AWP
+                : Constants.TARGET_MOVE_PENALTY;
+
         bool isHit = Random.value < hitChance;
 
         DrawTracer(transform, currentTarget.transform, isHit);

@@ -118,7 +118,7 @@ public class BombManager : MonoBehaviour
         }
     }
 
-    public void TryAutoPlant(List<BotController> attackerBots)
+    public void TryAutoPlant(List<BotController> attackerBots, List<BotController> defenderBots = null)
     {
         if (bombState != BombState.NotPlanted) return;
 
@@ -136,7 +136,11 @@ public class BombManager : MonoBehaviour
 
         if (targetSite != null)
         {
-            ProcessPlant(bombCarrier, targetSite);
+            // Plant guard: don't START a plant with a CT breathing on the site —
+            // R08: sneaky 17s plant under a 2-man hold got defused with 5 Ts alive.
+            // A plant already in progress is a commitment and continues.
+            if (isPlanting || SiteSafeToPlant(defenderBots))
+                ProcessPlant(bombCarrier, targetSite);
         }
         else if (isPlanting)
         {
@@ -145,6 +149,18 @@ public class BombManager : MonoBehaviour
             isPlanting = false;
             plantProgress = 0f;
         }
+    }
+
+    private bool SiteSafeToPlant(List<BotController> defenders)
+    {
+        if (defenders == null || bombCarrier == null) return true;
+        foreach (var d in defenders)
+        {
+            if (d?.Profile == null || !d.Profile.IsAlive) continue;
+            if (Vector3.Distance(d.transform.position, bombCarrier.transform.position) < 12f)
+                return false; // clear the site first
+        }
+        return true;
     }
 
     private void HandleDroppedBomb(List<BotController> attackers)

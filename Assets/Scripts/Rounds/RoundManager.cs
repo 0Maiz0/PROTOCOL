@@ -52,6 +52,7 @@ public class RoundManager : MonoBehaviour
 	// The coach's only in-match lever — tactical timeouts, like real CS
 	private int timeoutsLeft = Constants.TIMEOUTS_PER_MATCH;
 	private bool timeoutPending = false;
+	private float defuseOrderTimer;
 	private TeamProtocols fallbackProtocols = new TeamProtocols();
 
 	private TeamProtocols GetProtocols() =>
@@ -95,8 +96,8 @@ public class RoundManager : MonoBehaviour
 		// Broadcast-style intro splash
 		var intro = FindObjectOfType<MatchIntro>();
 		if (intro == null) intro = gameObject.AddComponent<MatchIntro>();
-		intro.Show("YOUR SQUAD",
-			CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "OPPONENT");
+		intro.Show("NAVI",
+			CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "FAZE");
 
 		MatchLogger.StartMatch(CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "standalone");
 
@@ -129,11 +130,36 @@ public class RoundManager : MonoBehaviour
 
 		if (!roundActive || currentPhase != RoundPhase.Live) return;
 		roundTimer -= Time.deltaTime;
-		if (bombManager != null) { bombManager.TryAutoPlant(attackerBots); bombManager.TryAutoDefuse(defenderBots); }
+		if (bombManager != null) { bombManager.TryAutoPlant(attackerBots, defenderBots); bombManager.TryAutoDefuse(defenderBots); }
+
+		// All Ts dead + bomb down → CTs must GO to the bomb (they stood around
+		// while it exploded in R12); reissued periodically in case fights distract
+		if (bombManager != null && bombManager.IsPlanted && attackersAlive <= 0)
+		{
+			defuseOrderTimer -= Time.deltaTime;
+			if (defuseOrderTimer <= 0f)
+			{
+				defuseOrderTimer = 2.5f;
+				OrderDefuseRush();
+			}
+		}
 		if (roundTimer <= 0f)
 		{
 			roundTimer = 0f;
 			if (bombManager == null || !bombManager.IsPlanted) { roundActive = false; Debug.Log("TIME EXPIRED — CT wins"); }
+		}
+	}
+
+	private void OrderDefuseRush()
+	{
+		GameObject wp = GameObject.Find(bombManager.PlantedSiteName == "A" ? "WP_NodeA" : "WP_NodeB");
+		if (wp == null) return;
+		foreach (var b in defenderBots)
+		{
+			if (b?.Profile == null || !b.Profile.IsAlive) continue;
+			b.HazardBypass = true;
+			b.AssignWaypoints(new Transform[] { wp.transform });
+			b.StartExecuting();
 		}
 	}
 

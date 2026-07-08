@@ -84,7 +84,7 @@ public static class WeaponData
     public static WeaponStats AWP => new WeaponStats
     {
         weaponName = "AWP",
-        range = 55f,
+        range = 70f, // 55 caused 60m sniper stare-downs — out of range = invisible to the scan
         damage = 110f,
         fireInterval = 1.9f, // bolt cycle + re-scope (log: AWP duo = 49 of 97 kills — trimmed again)
         magazineSize = 5,

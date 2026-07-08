@@ -145,6 +145,22 @@ public class PostPlantManager : MonoBehaviour
         List<BotController> alive = GetAlive(defenderBots);
         if (alive.Count == 0) yield break;
 
+        // Hopeless retake (1v4, 2v5...) — save the guns and exit instead of feeding
+        int tAlive = GetAlive(attackerBots).Count;
+        if (alive.Count <= 2 && tAlive - alive.Count >= 2)
+        {
+            if (wpCache.TryGetValue("WP_Garden", out Transform saveSpot))
+            {
+                CommsFeed.Post(alive[0].Profile.Data.nickname, "we can't retake this — SAVE, exit now!", TeamSide.Defender);
+                foreach (var b in alive)
+                {
+                    b.AssignWaypoints(new Transform[] { saveSpot });
+                    b.StartExecuting();
+                }
+                yield break;
+            }
+        }
+
         string mainWP, splitWP, siteWP;
         if (site == "A") { mainWP = retakeA_Main; splitWP = retakeA_Split; siteWP = "WP_NodeA"; }
         else { mainWP = retakeB_Main; splitWP = retakeB_Split; siteWP = "WP_NodeB"; }

@@ -82,7 +82,7 @@ public static class Constants
     public const float ACQUIRE_ANGLE_MAX_FACTOR = 1.6f;   // caught 90°+ off-angle — long swing
     public const float ACQUIRE_INTEL_FACTOR = 0.65f;      // prefire/pre-aim: the team knew they were there
     public const float INTEL_PREAIM_RADIUS = 8f;          // intel counts if within this of the actual position
-    public const float AWP_ACQUIRE_PENALTY = 0.25f;       // scoping in
+    public const float AWP_ACQUIRE_PENALTY = 0.35f;       // scoping in (AWPers took 50% of all kills — trim)
 
     // Counter-strafe discipline — rifles do not fire on the move
     public const float MOVE_ACCURACY_RIFLE = 0.08f;       // AK sprinting hits nothing
@@ -115,7 +115,7 @@ public static class Constants
     public const float UTIL_JIT_TIMEOUT = 20f;    // give up waiting and throw anyway
     public const float CT_CHOKE_WATCH_TIME = 40f; // how long CT watches a choke for denial molly
     public const float CT_CHOKE_TRIGGER_RANGE = 24f; // trigger EARLY — flight time made mollies land behind the rush
-    public const float UTIL_MAX_THROW_RANGE = 32f;   // nobody lobs a nade across the whole map
+    public const float UTIL_MAX_THROW_RANGE = 45f; // 32 starved commit utility (log: 0 attacker mollies/match)   // nobody lobs a nade across the whole map
 
     // CT defensive brain (playtest #2)
     public const float CT_EVAL_INTERVAL = 2f;     // how often the AI CT re-reads comms info

@@ -22,7 +22,9 @@
       "Bash(git commit --quiet -m 'Playtest #9: combat-first discipline, weapon carryover + pickups, AWP round 3+ *)",
       "Bash(git commit --quiet -m 'Fix round-1 AKs \\(carryover captured spawn defaults\\) + engagement shift *)",
       "Bash(awk '{print $1}')",
-      "Bash(git commit --quiet -m 'Playtest #11 \\(log-driven\\): CT stacks actually form, hold discipline, proximity utility, highlight moments *)"
+      "Bash(git commit --quiet -m 'Playtest #11 \\(log-driven\\): CT stacks actually form, hold discipline, proximity utility, highlight moments *)",
+      "Bash(awk '{print $3, $5}')",
+      "Bash(git commit --quiet -m 'Playtest #12 \\(log-driven\\): unstarve commit utility, trim AWP dominance, player-perspective score *)"
     ]
   }
 }

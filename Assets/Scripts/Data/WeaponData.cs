@@ -86,7 +86,7 @@ public static class WeaponData
         weaponName = "AWP",
         range = 55f,
         damage = 110f,
-        fireInterval = 1.6f, // bolt cycle + re-scope — no boom-boom double taps
+        fireInterval = 1.9f, // bolt cycle + re-scope (log: AWP duo = 49 of 97 kills — trimmed again)
         magazineSize = 5,
         reloadTime = 3.5f,
         baseAccuracy = 0.85f, // playtest #6: re-peek nerf

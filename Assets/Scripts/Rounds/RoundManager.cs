@@ -486,7 +486,9 @@ public class RoundManager : MonoBehaviour
 		GUIStyle s = new GUIStyle(GUI.skin.label);
 		s.fontSize = 22; s.fontStyle = FontStyle.Bold; s.normal.textColor = Color.white;
 		GUI.Box(new Rect(5, 5, 520, 115), "");
-		GUI.Label(new Rect(15, 10, 500, 30), $"Round {State.currentRound}  |  T {State.attackerScore} - {State.defenderScore} CT", s);
+		// Player-perspective score — "T 2-13 CT" after halftime reads like a loss when you're the 13
+		GUI.Label(new Rect(15, 10, 500, 30),
+			$"Round {State.currentRound}  |  YOU {State.PlayerScore} — {State.EnemyScore} THEM  (you are {(State.playerTeamSide == TeamSide.Attacker ? "T" : "CT")})", s);
 		s.fontSize = 16; s.fontStyle = FontStyle.Normal;
 		GUI.Label(new Rect(15, 40, 500, 25), $"{currentPhase}  |  Timer: {roundTimer:F0}s  |  {attackersAlive}v{defendersAlive}", s);
 		s.fontSize = 14;

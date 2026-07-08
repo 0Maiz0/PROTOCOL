@@ -81,10 +81,12 @@ public class TeamEconomy
 
         bool mustWin = enemyScore >= Constants.ROUNDS_TO_WIN - 1; // match point — no point saving
         int ecoStreakNeeded = discipline >= 70 ? 2 : 1;
-        // Desperation: 3+ losses in a row — stop the bleed, buy SOMETHING
-        // (log evidence: CT sat on $10331 at 0-3 and picked Eco)
-        bool shouldForce = mustWin || consecutiveEcos >= ecoStreakNeeded || wonLastRound
-                        || consecutiveLosses >= 3;
+        // Desperation: 3+ losses — stop the bleed, but NOT if one save round
+        // reaches a real full buy (eternal forcing vs full CTs caused an 0-7:
+        // T forced $14.5k every round and never assembled rifles+AWP)
+        bool desperation = consecutiveLosses >= 3 &&
+            credits + Constants.LOSS_BONUS_MAX < EstimateTierCost(BuyType.Full);
+        bool shouldForce = mustWin || consecutiveEcos >= ecoStreakNeeded || wonLastRound || desperation;
         if (discipline < 40) shouldForce |= CanAffordTier(BuyType.Force); // force-happy squad
         if (shouldForce && CanAffordTier(BuyType.Force)) return BuyType.Force;
         if (shouldForce && CanAffordTier(BuyType.Half)) return BuyType.Half;

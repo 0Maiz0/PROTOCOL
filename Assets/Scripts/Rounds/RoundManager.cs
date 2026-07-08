@@ -132,9 +132,10 @@ public class RoundManager : MonoBehaviour
 		roundTimer -= Time.deltaTime;
 		if (bombManager != null) { bombManager.TryAutoPlant(attackerBots, defenderBots); bombManager.TryAutoDefuse(defenderBots); }
 
-		// All Ts dead + bomb down → CTs must GO to the bomb (they stood around
-		// while it exploded in R12); reissued periodically in case fights distract
-		if (bombManager != null && bombManager.IsPlanted && attackersAlive <= 0)
+		// Bomb down + all Ts dead OR a crushing man advantage → CTs GO to the bomb
+		// (R8: four CTs danced around one hiding T for 40s and let it explode)
+		if (bombManager != null && bombManager.IsPlanted &&
+		    (attackersAlive <= 0 || defendersAlive - attackersAlive >= 3))
 		{
 			defuseOrderTimer -= Time.deltaTime;
 			if (defuseOrderTimer <= 0f)

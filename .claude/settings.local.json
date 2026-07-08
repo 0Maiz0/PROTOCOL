@@ -27,7 +27,8 @@
       "Bash(git commit --quiet -m 'Playtest #12 \\(log-driven\\): unstarve commit utility, trim AWP dominance, player-perspective score *)",
       "Bash(sed -n '/ROUND 8 START/,/R08.*ROUND END/p' MatchLogs/latest.log)",
       "Bash(sed -n '/ROUND 12 START/,/R12.*ROUND END/p' MatchLogs/latest.log)",
-      "Bash(git commit --quiet -m 'Playtest #13 \\(log-driven\\): defuse chain repaired, plant guard, leaderless IGL, saves, AWP tune *)"
+      "Bash(git commit --quiet -m 'Playtest #13 \\(log-driven\\): defuse chain repaired, plant guard, leaderless IGL, saves, AWP tune *)",
+      "Bash(git commit --quiet -m 'Playtest #14 \\(log-driven\\): break the eternal-force spiral, defuse rush on man advantage *)"
     ]
   }
 }

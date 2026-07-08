@@ -117,6 +117,7 @@ public class AICoach : MonoBehaviour
     private void EvaluateAIAttack()
     {
         if (bombManager == null || bombManager.IsPlanted || bombManager.IsExploded) return;
+        if (bombManager.IsPlantInProgress) return; // plant is happening — don't yank the team
 
         int mine = CountAliveBots(currentBots);
         int theirs = CountAliveBots(enemyBots);
@@ -149,6 +150,17 @@ public class AICoach : MonoBehaviour
     private string PickOpenSiteWP(out string site)
     {
         GameObject aWP = GameObject.Find("WP_NodeA"), bWP = GameObject.Find("WP_NodeB");
+
+        // The bomb goes where the CARRIER is
+        var carrier = bombManager != null ? bombManager.Carrier : null;
+        if (carrier != null && carrier.Profile != null && carrier.Profile.IsAlive && aWP != null && bWP != null)
+        {
+            bool nearA = Vector3.Distance(carrier.transform.position, aWP.transform.position) <=
+                         Vector3.Distance(carrier.transform.position, bWP.transform.position);
+            site = nearA ? "A" : "B";
+            return nearA ? "WP_NodeA" : "WP_NodeB";
+        }
+
         int sigA = 0, sigB = 0;
         if (CommsManager.Instance != null)
         {

@@ -238,6 +238,7 @@ public class IGLBrain : MonoBehaviour
     private void EvaluateAttack()
     {
         if (bombManager == null || bombManager.IsPlanted || bombManager.IsExploded) return;
+        if (bombManager.IsPlantInProgress) return; // plant is happening — do NOT yank the team elsewhere
 
         int mine = CountAlive(myBots);
         int theirs = CountAlive(enemyBots);
@@ -276,6 +277,17 @@ public class IGLBrain : MonoBehaviour
     private string PickOpenSite(out string wpName)
     {
         GameObject aWP = GameObject.Find("WP_NodeA"), bWP = GameObject.Find("WP_NodeB");
+
+        // The bomb goes where the CARRIER is — never call a site away from the bomb
+        var carrier = bombManager != null ? bombManager.Carrier : null;
+        if (carrier != null && carrier.Profile != null && carrier.Profile.IsAlive && aWP != null && bWP != null)
+        {
+            bool nearA = Vector3.Distance(carrier.transform.position, aWP.transform.position) <=
+                         Vector3.Distance(carrier.transform.position, bWP.transform.position);
+            wpName = nearA ? "WP_NodeA" : "WP_NodeB";
+            return nearA ? "A" : "B";
+        }
+
         int sigA = 0, sigB = 0;
         if (CommsManager.Instance != null)
         {

@@ -71,8 +71,8 @@ public static class Constants
     // Combat feel (playtest #2, CS-referenced)
     public const float PROXIMITY_AWARENESS_RANGE = 7f; // this close = heard, FOV ignored
     public const float FIRST_SHOT_BONUS = 1.25f;       // first-bullet accuracy
-    public const float HEADSHOT_BASE_CHANCE = 0.05f;
-    public const float HEADSHOT_AIM_SCALE = 0.15f;     // aim 100 → +15% headshot chance
+    public const float HEADSHOT_BASE_CHANCE = 0.04f;   // playtest #8: was a 70% HS-rate coin flip
+    public const float HEADSHOT_AIM_SCALE = 0.10f;     // aim 100 → +10% headshot chance
     public const float HEADSHOT_MULTIPLIER = 3.2f;     // rifle body 33 → ~105 head (one-tap like AK)
 
     // Crosshair placement model (playtest #3) — the duel is decided before the trigger
@@ -105,7 +105,8 @@ public static class Constants
     // Playtest #4: bomb carrier, reload retreat, one-taps, panic utility
     public const float BOMB_PICKUP_RANGE = 2.5f;
     public const float RELOAD_RETREAT_RANGE = 14f;  // enemy this close while reloading → back off
-    public const float FIRST_BULLET_HS_MULT = 2f;   // opening shot is aimed head-level
+    public const float FIRST_BULLET_HS_MULT = 1.6f; // opening shot is aimed head-level
+    public const float MOLOTOV_DPS = 55f; // real fire — crossing costs ~60HP (scene had stale 30)
     public const float PANIC_SMOKE_HP = 50f;        // below this + outnumbered → self-smoke
     public const float SITE_EXECUTE_RADIUS = 14f;   // bots inside this of a site = already executing
 

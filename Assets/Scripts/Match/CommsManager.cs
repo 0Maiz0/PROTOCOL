@@ -63,6 +63,7 @@ public class CommsManager : MonoBehaviour
         defenderKnownEnemies.Clear();
         attackerHelpRequests.Clear();
         defenderHelpRequests.Clear();
+        lastHeardVoiceTime.Clear();
     }
 
     // ===================== REPORT ENEMY =====================
@@ -96,10 +97,24 @@ public class CommsManager : MonoBehaviour
         };
 
         if (isNew)
-            CommsFeed.Post(spotter.Profile.Data.nickname,
-                heard ? "hearing someone close!" : $"contact — {enemy.Profile.Data.nickname} spotted!",
-                spotter.Side);
+        {
+            // Voice cooldown for sound reports — five rushers = one "hearing them",
+            // not five identical lines in one second (info is still stored above)
+            bool voice = true;
+            if (heard)
+            {
+                int spotterId = spotter.GetInstanceID();
+                voice = !lastHeardVoiceTime.TryGetValue(spotterId, out float t) || Time.time - t > 3f;
+                if (voice) lastHeardVoiceTime[spotterId] = Time.time;
+            }
+            if (voice)
+                CommsFeed.Post(spotter.Profile.Data.nickname,
+                    heard ? "hearing someone close!" : $"contact — {enemy.Profile.Data.nickname} spotted!",
+                    spotter.Side);
+        }
     }
+
+    private readonly Dictionary<int, float> lastHeardVoiceTime = new Dictionary<int, float>();
 
     /// <summary>
     /// Report an enemy kill — team knows this enemy is dead.

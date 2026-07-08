@@ -487,7 +487,8 @@ public class GrenadeManager : MonoBehaviour
         {
             case GrenadeType.Smoke: fx.Radius = smokeRadius; fx.Duration = smokeDuration; break;
             case GrenadeType.Flash: fx.Radius = flashRadius; fx.Duration = 0.5f; break;
-            case GrenadeType.Molotov: fx.Radius = molotovRadius; fx.Duration = molotovDuration; fx.DamagePerSecond = molotovDPS; break;
+            // DPS from Constants — the scene serializes a stale 30 in molotovDPS
+            case GrenadeType.Molotov: fx.Radius = molotovRadius; fx.Duration = molotovDuration; fx.DamagePerSecond = Constants.MOLOTOV_DPS; break;
         }
 
         activeGrenades.Add(obj);

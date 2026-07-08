@@ -50,6 +50,7 @@ public class BombManager : MonoBehaviour
     private float nextFetchOrder;
 
     public BotController Carrier => bombCarrier;
+    public bool IsPlantInProgress => isPlanting;
 
     public void ResetForRound()
     {

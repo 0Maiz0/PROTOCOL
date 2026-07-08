@@ -80,7 +80,10 @@ public class TeamEconomy
 
         bool mustWin = enemyScore >= Constants.ROUNDS_TO_WIN - 1; // match point — no point saving
         int ecoStreakNeeded = discipline >= 70 ? 2 : 1;
-        bool shouldForce = mustWin || consecutiveEcos >= ecoStreakNeeded || wonLastRound;
+        // Desperation: 3+ losses in a row — stop the bleed, buy SOMETHING
+        // (log evidence: CT sat on $10331 at 0-3 and picked Eco)
+        bool shouldForce = mustWin || consecutiveEcos >= ecoStreakNeeded || wonLastRound
+                        || consecutiveLosses >= 3;
         if (discipline < 40) shouldForce |= CanAffordTier(BuyType.Force); // force-happy squad
         if (shouldForce && CanAffordTier(BuyType.Force)) return BuyType.Force;
         if (shouldForce && CanAffordTier(BuyType.Half)) return BuyType.Half;
@@ -159,6 +162,17 @@ public class MatchEconomy : MonoBehaviour
     // Track scores for match-point force buy decisions
     private int attackerScore = 0;
     private int defenderScore = 0;
+
+    private void Awake()
+    {
+        // The scene serializes TeamEconomy with STALE v1 values (credits 800!) —
+        // field initializers never run for serialized classes. Hard reset.
+        // Log evidence: R01 "BUY: T Eco ($300)" — start bank was 800, not 4000.
+        attackerEconomy.Reset();
+        defenderEconomy.Reset();
+        attackerScore = 0;
+        defenderScore = 0;
+    }
 
     public TeamEconomy GetEconomy(TeamSide side) =>
         side == TeamSide.Attacker ? attackerEconomy : defenderEconomy;

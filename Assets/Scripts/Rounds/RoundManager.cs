@@ -171,6 +171,7 @@ public class RoundManager : MonoBehaviour
 			}
 		}
 		Debug.Log($"========== {State.matchWinner} WINS {State.attackerScore}-{State.defenderScore} ==========");
+		LogScoreboard();
 		MatchLogger.EndMatch($"{State.matchWinner} wins {State.attackerScore}-{State.defenderScore} " +
 			$"({(State.matchWinner == State.playerTeamSide ? "PLAYER VICTORY" : "OPPONENT VICTORY")})");
 
@@ -189,6 +190,13 @@ public class RoundManager : MonoBehaviour
 
 		// ============ FREEZE TIME ============
 		currentPhase = RoundPhase.FreezeTime;
+
+		// Weapon carryover (CS rule): survivors keep their guns — capture BEFORE reset.
+		// This is what makes save rounds and eco pickups actually matter.
+		carriedWeapons.Clear();
+		CaptureCarriedWeapons(attackerBots);
+		CaptureCarriedWeapons(defenderBots);
+
 		ResetAllBots();
 		FreezeAllBots();
 		EngagementSystem.ClearAllEngagements();
@@ -349,6 +357,16 @@ public class RoundManager : MonoBehaviour
 			if (i < defenderSpawns.Length && defenderSpawns[i] != null) defenderBots[i].ResetForRound(defenderSpawns[i].position);
 	}
 
+	private readonly Dictionary<BotController, WeaponData.WeaponStats> carriedWeapons
+		= new Dictionary<BotController, WeaponData.WeaponStats>();
+
+	private void CaptureCarriedWeapons(List<BotController> bots)
+	{
+		foreach (var b in bots)
+			if (b?.Profile != null && b.Profile.IsAlive && b.Profile.CurrentWeapon.weaponName != "Pistol")
+				carriedWeapons[b] = b.Profile.CurrentWeapon;
+	}
+
 	private void AssignBuyTypes()
 	{
 		AssignTeamLoadouts(attackerBots, economy.attackerEconomy, TeamSide.Attacker);
@@ -357,12 +375,22 @@ public class RoundManager : MonoBehaviour
 
 	private void AssignTeamLoadouts(List<BotController> bots, TeamEconomy econ, TeamSide side)
 	{
+		// Survivors keep last round's gun for free — no purchase needed
+		int kept = 0;
+		foreach (var b in bots)
+			if (b?.Profile != null && carriedWeapons.TryGetValue(b, out var carried))
+			{
+				b.SetLoadout(carried, econ.currentBuyType);
+				kept++;
+			}
+		if (kept > 0) MatchLogger.Log($"CARRY[{side}]: {kept} kept their guns");
+
 		// AWPer buys first so the pool can afford the big green
 		foreach (var b in bots)
-			if (b?.Profile != null && b.Profile.AssignedRole == Role.AWPer)
+			if (b?.Profile != null && !carriedWeapons.ContainsKey(b) && b.Profile.AssignedRole == Role.AWPer)
 				b.SetLoadout(Localize(econ.BuyWeaponFor(Role.AWPer), side), econ.currentBuyType);
 		foreach (var b in bots)
-			if (b?.Profile != null && b.Profile.AssignedRole != Role.AWPer)
+			if (b?.Profile != null && !carriedWeapons.ContainsKey(b) && b.Profile.AssignedRole != Role.AWPer)
 				b.SetLoadout(Localize(econ.BuyWeaponFor(b.Profile.AssignedRole), side), econ.currentBuyType);
 	}
 
@@ -385,6 +413,7 @@ public class RoundManager : MonoBehaviour
 
 	private void SwapSidesAtHalftime()
 	{
+		carriedWeapons.Clear(); // fresh pistol round after the swap — nothing carries over
 		(attackerBots, defenderBots) = (defenderBots, attackerBots);
 		// Spawns DON'T swap: attackers always spawn at the T side of the map.
 		// Swapping them made teams keep their physical positions and only change color.
@@ -425,6 +454,17 @@ public class RoundManager : MonoBehaviour
 		if (bombManager != null) { if (bombManager.IsExploded) return TeamSide.Attacker; if (bombManager.IsDefused) return TeamSide.Defender; }
 		UpdateAliveCounts();
 		return (attackersAlive <= 0) ? TeamSide.Defender : (defendersAlive <= 0) ? TeamSide.Attacker : TeamSide.Defender;
+	}
+
+	private void LogScoreboard()
+	{
+		MatchLogger.Log("=== SCOREBOARD (who actually carried) ===");
+		foreach (var b in attackerBots)
+			if (b?.Profile != null)
+				MatchLogger.Log($"  {b.Profile.Data.nickname}: {b.Profile.MatchKills}K / {b.Profile.MatchDeaths}D");
+		foreach (var b in defenderBots)
+			if (b?.Profile != null)
+				MatchLogger.Log($"  {b.Profile.Data.nickname}: {b.Profile.MatchKills}K / {b.Profile.MatchDeaths}D");
 	}
 
 	private int CountKills(List<BotController> bots)

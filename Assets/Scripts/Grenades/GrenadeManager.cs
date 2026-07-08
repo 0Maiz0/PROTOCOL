@@ -505,17 +505,17 @@ public class GrenadeManager : MonoBehaviour
         var bots = (side == TeamSide.Attacker) ? attackerBots : defenderBots;
         if (bots == null) return null;
 
-        // First try: preferred role
+        // First try: preferred role (never someone mid-duel — shooting > utility)
         foreach (var b in bots)
         {
-            if (b == null || !b.Profile.IsAlive) continue;
+            if (b == null || !b.Profile.IsAlive || b.IsInCombat) continue;
             if (b.Profile.AssignedRole == preferredRole) return b;
         }
 
         // Fallback: any alive bot (not Entry — they should be pushing)
         foreach (var b in bots)
         {
-            if (b == null || !b.Profile.IsAlive) continue;
+            if (b == null || !b.Profile.IsAlive || b.IsInCombat) continue;
             if (b.Profile.AssignedRole != Role.Entry) return b;
         }
 
@@ -537,7 +537,7 @@ public class GrenadeManager : MonoBehaviour
         float bestDist = float.MaxValue;
         foreach (var b in bots)
         {
-            if (b == null || !b.Profile.IsAlive) continue;
+            if (b == null || !b.Profile.IsAlive || b.IsInCombat) continue; // shooting > utility
             float d = Vector3.Distance(b.transform.position, nearPosition);
             if (d < bestDist) { bestDist = d; best = b; }
         }

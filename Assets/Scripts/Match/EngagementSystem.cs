@@ -421,11 +421,37 @@ public class EngagementSystem : MonoBehaviour
         }
     }
 
+    private static int WeaponTier(string name) => name switch
+    {
+        "AWP" => 4,
+        "AK-47/M4" => 3,
+        "Galil/Famas" => 2,
+        "SMG" => 1,
+        _ => 0
+    };
+
     private void OnTargetKilled(BotController victim)
     {
         myBot.Profile.RoundKills++;
         myBot.Profile.MatchKills++;
         victim.Profile.MatchDeaths++;
+
+        // Eco upgrade: on a pistol/SMG, take the dead man's better gun (abstracted
+        // pickup) — with carryover it stays for next round, CS-style
+        if (WeaponTier(myBot.Profile.CurrentWeapon.weaponName) <= 1 &&
+            WeaponTier(victim.Profile.CurrentWeapon.weaponName) > WeaponTier(myBot.Profile.CurrentWeapon.weaponName) &&
+            Vector3.Distance(transform.position, victim.transform.position) < 15f)
+        {
+            var looted = victim.Profile.CurrentWeapon;
+            myBot.Profile.CurrentWeapon = looted;
+            myBot.Profile.CurrentAmmo = looted.magazineSize;
+            myBot.Profile.IsReloading = false;
+            myBot.Profile.ReloadTimer = 0f;
+            string label = string.IsNullOrEmpty(looted.displayName) ? looted.weaponName : looted.displayName;
+            CommsFeed.Post(myBot.Profile.Data.nickname, $"picked up the {label}!", myBot.Side);
+            MatchLogger.Log($"PICKUP: {myBot.Profile.Data.nickname} takes {label} from {victim.Profile.Data.nickname}");
+        }
+
         victim.Die();
 
         // Comms: report kill

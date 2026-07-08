@@ -18,7 +18,8 @@
       "Bash(git commit --quiet -m 'Add Unity meta files for MainMenu, MatchIntro and UI folder *)",
       "Bash(git commit --quiet -m 'Playtest #6: halftime side swap fix, IGL v3 with personality, AWP discipline, side weapons *)",
       "Bash(git commit --quiet -m 'Playtest #7: match telemetry log, enemy AI parity, opponent comms visible, dry-peek discipline *)",
-      "Bash(git commit --quiet -m 'Playtest #8 \\(first log-driven review\\): stale scene economy, desperation force, HS-rate tune *)"
+      "Bash(git commit --quiet -m 'Playtest #8 \\(first log-driven review\\): stale scene economy, desperation force, HS-rate tune *)",
+      "Bash(git commit --quiet -m 'Playtest #9: combat-first discipline, weapon carryover + pickups, AWP round 3+ *)"
     ]
   }
 }

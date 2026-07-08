@@ -26,6 +26,7 @@ public class TeamEconomy
     public int consecutiveEcos = 0;
     public bool wonLastRound = false;
     public bool isFirstRound = true;
+    public int roundsPlayed = 0; // AWP unlocks round 3+ of a half — nobody buys it round 2
 
     public void AddWinReward()
     {
@@ -93,6 +94,7 @@ public class TeamEconomy
 
     public void SetBuy(BuyType t)
     {
+        roundsPlayed++;
         currentBuyType = t;
         if (isFirstRound) { isFirstRound = false; consecutiveEcos = 0; return; } // pistol doesn't count as eco
         if (t == BuyType.Eco) consecutiveEcos++;
@@ -126,7 +128,7 @@ public class TeamEconomy
                 return WeaponData.Pistol;
 
             default: // Full
-                if (role == Role.AWPer && TrySpend(Constants.BUY_COST_FULL_AWP)) return WeaponData.AWP;
+                if (role == Role.AWPer && roundsPlayed >= 3 && TrySpend(Constants.BUY_COST_FULL_AWP)) return WeaponData.AWP;
                 if (TrySpend(Constants.BUY_COST_FULL)) return WeaponData.Rifle;
                 if (TrySpend(Constants.BUY_COST_FORCE)) return WeaponData.Rifle_Light;
                 if (TrySpend(Constants.BUY_COST_HALF)) return WeaponData.SMG;
@@ -149,6 +151,7 @@ public class TeamEconomy
         consecutiveEcos = 0;
         wonLastRound = false;
         isFirstRound = true;
+        roundsPlayed = 0;
         currentBuyType = BuyType.Eco;
         recommendedBuy = BuyType.Eco;
     }

@@ -61,10 +61,16 @@ public class BotController : MonoBehaviour
     public void AssignWaypoints(Transform[] wp)
     { currentWaypoints = wp; waypointIndex = 0; isSeekingTarget = false; HoldForCommit = false; }
 
+    public bool IsInCombat => stateMachine != null && stateMachine.IsInCombat;
+
     public void StartExecuting()
     {
         if (IsFrozen) return;
         if (currentWaypoints == null || currentWaypoints.Length == 0) return;
+        // Mid-fight orders don't cancel the fight — rotations/pushes used to yank
+        // bots out of duels ("sees CTs charging and doesn't shoot"). The new path
+        // is stored and resumes automatically after the duel (OnStateChanged).
+        if (stateMachine.IsInCombat) return;
         stateMachine.TransitionTo(BotState.Moving);
         agent.isStopped = false;
         MoveToNextWaypoint();

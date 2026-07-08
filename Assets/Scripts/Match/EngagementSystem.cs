@@ -31,6 +31,7 @@ public class EngagementSystem : MonoBehaviour
     private bool hasCalledHelp;
     private float clutchFactor = 1f; // Hit-chance multiplier when last alive vs 2+
     private bool burstHold;          // Pausing mid-spray to re-aim (burst discipline)
+    private bool strafedThisHold;    // One jiggle-step per burst pause
     private float weaponCooldownUntil; // Time.time — fire interval persists across target switches
 
     private static Material tracerMaterial; // Shared — one material for all tracers
@@ -279,6 +280,30 @@ public class EngagementSystem : MonoBehaviour
         float dist = Vector3.Distance(transform.position, shooter.transform.position);
         if (dist <= myBot.Profile.CurrentWeapon.range && HasLineOfSight(shooter.transform, dist))
             StartEngagement(shooter, caughtAngle);
+        else
+            EvadeFrom(shooter.transform.position); // can't fight back — don't stand there eating shots
+    }
+
+    /// <summary>
+    /// Getting hit with no line on the shooter (smoke, off-angle) —
+    /// break the line with a diagonal dodge instead of standing in the open.
+    /// </summary>
+    private void EvadeFrom(Vector3 threat)
+    {
+        var agent = myBot.Agent;
+        if (agent == null || !agent.isOnNavMesh) return;
+        if (myStateMachine.CurrentState == BotState.Shooting) return;
+
+        Vector3 away = transform.position - threat;
+        away.y = 0f;
+        if (away.sqrMagnitude < 0.01f) return;
+        away.Normalize();
+        Vector3 side = Vector3.Cross(away, Vector3.up) * (Random.value < 0.5f ? 1f : -1f);
+
+        if (myStateMachine.CurrentState != BotState.Moving)
+            myStateMachine.TransitionTo(BotState.Moving); // transition first — it may resume waypoints
+        agent.isStopped = false;
+        agent.SetDestination(transform.position + (away + side).normalized * 4f);
     }
 
     /// <summary>
@@ -368,8 +393,24 @@ public class EngagementSystem : MonoBehaviour
             if (burstHold)
             {
                 myBot.Profile.DecaySpray(Time.deltaTime * 2f); // re-aiming
+
+                // Jiggle: sidestep during the re-aim pause instead of standing
+                // in the open like a silver — settle again before the next burst
+                if (!strafedThisHold && myBot.Agent != null && myBot.Agent.isOnNavMesh)
+                {
+                    strafedThisHold = true;
+                    Vector3 side = transform.right * (Random.value < 0.5f ? 1.8f : -1.8f);
+                    myBot.Agent.isStopped = false;
+                    myBot.Agent.SetDestination(transform.position + side);
+                }
+
                 if (myBot.Profile.SprayCounter <= Constants.BURST_RESUME_SPRAY)
+                {
                     burstHold = false;
+                    strafedThisHold = false;
+                    if (myBot.Agent != null && !myBot.CanRunAndGun() && myBot.Agent.isOnNavMesh)
+                        myBot.Agent.isStopped = true; // plant the feet — counter-strafe
+                }
             }
 
             if (!burstHold)
@@ -614,6 +655,6 @@ public class EngagementSystem : MonoBehaviour
     public static void ClearAllEngagements()
     {
         foreach (var s in allSystems)
-        { s.currentTarget = null; s.disengageTimer = 0; s.fireTimer = 0; s.hasCalledHelp = false; s.clutchFactor = 1f; s.burstHold = false; s.weaponCooldownUntil = 0f; }
+        { s.currentTarget = null; s.disengageTimer = 0; s.fireTimer = 0; s.hasCalledHelp = false; s.clutchFactor = 1f; s.burstHold = false; s.strafedThisHold = false; s.weaponCooldownUntil = 0f; }
     }
 }

@@ -192,10 +192,14 @@ public class RoundManager : MonoBehaviour
 		currentPhase = RoundPhase.FreezeTime;
 
 		// Weapon carryover (CS rule): survivors keep their guns — capture BEFORE reset.
-		// This is what makes save rounds and eco pickups actually matter.
+		// NEVER on pistol rounds: round 1 would capture the spawn-default rifles
+		// (bots initialize with Full-buy profiles), round 13 would carry across halftime.
 		carriedWeapons.Clear();
-		CaptureCarriedWeapons(attackerBots);
-		CaptureCarriedWeapons(defenderBots);
+		if (State.currentRound > 1 && State.currentRound != Constants.HALFTIME_ROUND + 1)
+		{
+			CaptureCarriedWeapons(attackerBots);
+			CaptureCarriedWeapons(defenderBots);
+		}
 
 		ResetAllBots();
 		FreezeAllBots();

@@ -3,26 +3,31 @@ using System.Collections.Generic;
 using Unity.AI.Navigation;
 
 /// <summary>
-/// MIRAGE GENERATOR — builds a CS-Mirage-style layout (low-poly blockout).
+/// MIRAGE GENERATOR v2 — de_mirage layout as a low-poly blockout (shapes, no textures).
 ///
-/// Real Mirage callouts are mapped onto our FIXED waypoint graph so every
-/// existing StrategyData asset keeps working:
-///   WP_NodeA  = A site        WP_NodeB   = B site        WP_Axis    = Mid
-///   WP_Garden = Palace        WP_ACorr   = A Ramp        WP_Catwalk = Connector
-///   WP_BAlley = Apartments    WP_Bazaar  = Market        WP_Tunnel  = Underpass
-///   WP_Bridge = Mid Connector WP_TopAxis = Top Mid       WP_TBase/WP_CTBase = spawns
+/// Real Mirage geography, T spawn south / CT spawn north:
+///   • A site (east): reached via A Ramp (south), Palace (south-east), Connector
+///     (from mid) and CT/Sandwich (north).
+///   • B site (west): reached via Apartments (south), Short/Catwalk (from mid),
+///     Market (north-west) and Underpass (T mid-to-B).
+///   • Mid (center): Top Mid → Mid → Window, with Connector peeling east to A
+///     and Catwalk/Short peeling west to B.
 ///
-/// SETUP: empty GameObject in the match scene + this component. It builds
-/// geometry, waypoints, spawns, bomb sites and CoverPoints in Awake, bakes
-/// the NavMesh and wires RoundManager / BombManager / StrategyExecutor /
-/// ObserverCamera. Disable the hand-made map first. Layout is fixed (Mirage
-/// is Mirage) — no seed.
+/// Callouts map onto the FIXED waypoint graph so every StrategyData works:
+///   WP_NodeA=A  WP_NodeB=B  WP_Axis=Mid  WP_TopAxis=TopMid/Window  WP_Bridge=Mid
+///   WP_Catwalk=Connector(→A)  WP_Garden=Palace(→A)  WP_ACorr=A Ramp
+///   WP_Bazaar=Market(→B)  WP_Tunnel=Underpass(→B)  WP_BAlley=Apartments(→B)
+///   WP_Overlook=A cover   WP_TBase/WP_CTBase=spawns
+///
+/// SETUP: empty GameObject in the match scene + this component; disable the
+/// hand-made map. It builds geometry/spawns/sites/cover, bakes the NavMesh and
+/// wires RoundManager/BombManager/StrategyExecutor/ObserverCamera in Awake.
 /// </summary>
 public class MirageGenerator : MonoBehaviour
 {
     [Header("Generation")]
     [SerializeField] private bool generateOnAwake = true;
-    [SerializeField] private float wallHeight = 3f;
+    [SerializeField] private float wallHeight = 3.5f;
 
     [Header("Wiring (auto-found if empty)")]
     [SerializeField] private RoundManager roundManager;
@@ -35,10 +40,10 @@ public class MirageGenerator : MonoBehaviour
     private readonly List<Transform> tSpawns = new List<Transform>();
     private readonly List<Transform> ctSpawns = new List<Transform>();
 
-    private static readonly Color FloorColor = new Color(0.62f, 0.55f, 0.42f); // Mirage sand
-    private static readonly Color WallColor = new Color(0.72f, 0.66f, 0.55f);
-    private static readonly Color CrateColor = new Color(0.5f, 0.38f, 0.22f);
-    private static readonly Color SiteColor = new Color(0.75f, 0.65f, 0.3f);
+    private static readonly Color FloorColor = new Color(0.60f, 0.53f, 0.40f); // Mirage sandstone
+    private static readonly Color WallColor  = new Color(0.74f, 0.68f, 0.56f);
+    private static readonly Color CrateColor = new Color(0.48f, 0.36f, 0.20f);
+    private static readonly Color SiteColor  = new Color(0.80f, 0.68f, 0.30f);
 
     private void Awake()
     {
@@ -58,92 +63,118 @@ public class MirageGenerator : MonoBehaviour
         tSpawns.Clear();
         ctSpawns.Clear();
 
-        // ===== Ground + outer walls (X = west..east, Z = south(T)..north(CT)) =====
-        // ~100 x 80 arena
-        Box("Floor", new Vector3(0, -0.5f, 0), new Vector3(104, 1, 84), FloorColor);
-        Wall(0, 41.5f, 104, 1);   // north (CT)
-        Wall(0, -41.5f, 104, 1);  // south (T)
-        Wall(-51.5f, 0, 1, 84);   // west
-        Wall(51.5f, 0, 1, 84);    // east
+        // ===== GROUND + OUTER SHELL (X = west..east, Z = south(T)..north(CT)) =====
+        Box("Floor", new Vector3(0, -0.5f, 0), new Vector3(120, 1, 100), FloorColor);
+        Seg(-55, -45, 55, -45); // south (T back)
+        Seg(-55,  45, 55,  45); // north (CT back)
+        Seg(-55, -45, -55, 45); // west
+        Seg( 55, -45,  55, 45); // east
 
-        // ===== MID — central vertical lane, x in [-6, 6] =====
-        // East mid wall: gap 6..13 = Connector to A ; West mid wall: gap 4..11 = to B
-        Wall(6, -12f, 1, 36);          // east mid wall lower (z -30..6)
-        Wall(6, 22.5f, 1, 17);         // east mid wall upper (z 14..31)
-        Wall(-6, -13f, 1, 34);         // west mid wall lower (z -30..4)
-        Wall(-6, 21f, 1, 20);          // west mid wall upper (z 11..31)
-        // Mid doors / window ledge (partial cover crate cluster mid)
-        Crate(new Vector3(0, 0, 2), 2.2f, 2.5f);
-        Crate(new Vector3(2, 0, -6), 2f, 2f);
+        // ===== MID — central corridor, west wall x=-2, east wall x=12 =====
+        // West mid wall: gap z[-20..-13] = Underpass mouth, gap z[9..15] = Catwalk to B
+        Seg(-2, -26, -2, -20);
+        Seg(-2, -13, -2,   9);
+        Seg(-2,  15, -2,  28);
+        // East mid wall: gap z[11..17] = Connector to A
+        Seg(12, -26, 12,  11);
+        Seg(12,  17, 12,  28);
 
-        // ===== A SITE (north-east) =====
-        Vector3 aCenter = new Vector3(30, 24, 0);
-        SiteFloor("A", aCenter, 20);
-        // A west wall (separates from mid/connector), gap at south = connector entry
-        Wall(20, 24, 1, 20);           // z 14..34
-        // A south wall with RAMP gap around x=30 (width 6)
-        Wall(25.5f, 14, 9, 1);         // x 21..30
-        Wall(37, 14, 8, 1);            // x 33..41
-        // Palace lane (SE): a raised chunk east of ramp
-        Wall(44, 2, 1, 26);            // x 44 wall z -11..15 (palace/ramp divider)
+        // ===== A SITE (east) — box x[26..50], z[12..34] =====
+        SiteFloor("A", new Vector3(38, 0, 23), 24);
+        Seg(26, 20, 26, 34);   // west wall (Connector enters below z20)
+        Seg(26, 12, 26, 15);   // west stub south of connector
+        Seg(26, 34, 43, 34);   // north wall, gap x[43..50] = CT/Sandwich entry
+        Seg(50, 12, 50, 34);   // east wall
+        Seg(26, 12, 30, 12);   // south wall, gap x[30..34] = A Ramp
+        Seg(34, 12, 44, 12);   // south wall, gap x[44..50] = Palace (SE)
+        // Connector shaping (mid → A), open lane x[12..26] z[14..17]
+        Seg(12, 11, 26, 12);   // connector south guide
 
-        // ===== B SITE (north-west) =====
-        Vector3 bCenter = new Vector3(-32, 22, 0);
-        SiteFloor("B", bCenter, 18);
-        // B east wall, gap at south = apartments entry
-        Wall(-20, 23, 1, 18);          // z 14..32
-        // B south wall with APARTMENTS gap around x=-30 (width 6)
-        Wall(-25.5f, 13, 9, 1);        // x -30..-21
-        Wall(-40, 13, 12, 1);          // x -46..-34
-        // Market structure (far west, outside B)
-        Wall(-46, 20, 1, 14);          // market back wall
+        // ===== A RAMP + PALACE (T's south-east routes to A) =====
+        Seg(24, -30, 24, 10);          // Ramp west wall (splits ramp from mid/underpass)
+        Seg(40, -28, 40,  8);          // divider: Ramp (west) vs Palace (east)
+        Seg(40,  8, 50, 12);           // Palace diagonal into A's SE gap
 
-        // ===== Cover crates + CoverPoints =====
-        ScatterSiteCover(aCenter, 7f, 4, new Vector3(30, 0, -10)); // threats from ramp/mid south
-        ScatterSiteCover(bCenter, 6f, 4, new Vector3(-30, 0, -10));
+        // ===== B SITE (west) — box x[-50..-26], z[-4..18] =====
+        SiteFloor("B", new Vector3(-38, 0, 7), 22);
+        Seg(-26,   8, -26, 18);        // east wall (upper)
+        Seg(-26,  -4, -26,  2);        // east wall (lower), gap z[2..8] = Short/Catwalk
+        Seg(-46,  18, -26, 18);        // north wall, gap x[-50..-46] = Market entry
+        Seg(-50,  -4, -50, 18);        // west wall
+        Seg(-50,  -4, -32, -4);        // south wall, gap x[-32..-26] = Apartments
 
-        // ===== Bomb sites =====
-        BombSite siteA = MakeSite("A", aCenter, 7f);
-        BombSite siteB = MakeSite("B", bCenter, 6.5f);
+        // ===== APARTMENTS + UNDERPASS (T's south-west / mid routes to B) =====
+        Seg(-24, -30, -24, -4);        // Apartments east wall (splits apps from mid)
+        Seg(-24, -20, -2, -20);        // Underpass south wall (mid → B, x[-24..-2])
+        Seg(-26,  15, -2, 15);         // Catwalk north guide (mid → B short)
 
-        // ===== Spawns =====
-        MakeSpawns(tSpawns, "TSpawn", new Vector3(0, 0, -37));
-        MakeSpawns(ctSpawns, "CTSpawn", new Vector3(0, 0, 37));
+        // ===== MARKET (CT's north-west route to B) =====
+        Seg(-30, 20, -30, 40);         // Market east wall (splits market from CT/mid)
+        Seg(-50, 20, -50, 40);         // Market west wall
+        Seg(-50, 40, -30, 40);         // Market north wall
 
-        // ===== Waypoints — Mirage callouts on the fixed graph =====
-        WP("WP_NodeA", aCenter);                       // A site
-        WP("WP_NodeB", bCenter);                       // B site
-        WP("WP_Axis", new Vector3(0, 0, 0));           // Mid
-        WP("WP_TopAxis", new Vector3(0, 0, 26));       // Top Mid (CT mid)
-        WP("WP_Bridge", new Vector3(0, 0, -14));       // Mid / underpass mouth
-        WP("WP_Tunnel", new Vector3(-2, 0, -24));      // Underpass (T under mid)
-        WP("WP_Catwalk", new Vector3(13, 0, 10));      // Connector (mid → A)
-        WP("WP_ACorr", new Vector3(30, 0, 2));         // A Ramp choke
-        WP("WP_Garden", new Vector3(44, 0, -6));       // Palace
-        WP("WP_BAlley", new Vector3(-30, 0, 2));       // Apartments choke
-        WP("WP_Bazaar", new Vector3(-45, 0, 14));      // Market
-        WP("WP_TBase", new Vector3(0, 0, -37));
-        WP("WP_CTBase", new Vector3(0, 0, 37));
+        // ===== CT SPAWN / TOP MID / WINDOW (north) =====
+        Seg(-2, 28, 12, 28);           // Window front (mid top), gap open to CT at sides
+        Seg(26, 34, 26, 40);           // wall guiding CT → A (Sandwich)
 
-        // Post-plant spots (site corners)
-        PostPlant("A", aCenter, 6f);
-        PostPlant("B", bCenter, 5.5f);
+        // ===== COVER (crates + CoverPoints facing the entrances) =====
+        // A: triple box / firebox / default
+        SiteCrate(new Vector3(37, 0, 22), new Vector3(30, 0, 4));
+        SiteCrate(new Vector3(41, 0, 25), new Vector3(30, 0, 4));
+        SiteCrate(new Vector3(34, 0, 26), new Vector3(26, 0, 20));
+        SiteCrate(new Vector3(45, 0, 20), new Vector3(48, 0, 6));
+        // B: bench / van / kitchen
+        SiteCrate(new Vector3(-40, 0, 6), new Vector3(-30, 0, -4));
+        SiteCrate(new Vector3(-36, 0, 11), new Vector3(-26, 0, 4));
+        SiteCrate(new Vector3(-44, 0, 12), new Vector3(-48, 0, 20));
+        // Mid window + connector cover
+        Crate(new Vector3(5, 0, 24), 2f, 2f);
+        Crate(new Vector3(18, 0, 9), 2f, 2f);
+        Crate(new Vector3(-14, 0, -18), 2f, 2f); // underpass
+        Crate(new Vector3(46, 0, 0), 2.5f, 2f);  // palace steps
 
-        // ===== NavMesh =====
+        // ===== BOMB SITES =====
+        BombSite siteA = MakeSite("A", new Vector3(38, 0, 23), 7f);
+        BombSite siteB = MakeSite("B", new Vector3(-38, 0, 7), 6.5f);
+
+        // ===== SPAWNS =====
+        MakeSpawns(tSpawns, "TSpawn", new Vector3(2, 0, -40));   // T bottom (slightly A-side)
+        MakeSpawns(ctSpawns, "CTSpawn", new Vector3(6, 0, 40));  // CT top-center
+
+        // ===== WAYPOINTS — Mirage callouts on the fixed graph =====
+        WP("WP_NodeA",   new Vector3(38, 0, 23));  // A site
+        WP("WP_NodeB",   new Vector3(-38, 0, 7));  // B site
+        WP("WP_Axis",    new Vector3(5, 0, -2));   // Mid
+        WP("WP_Bridge",  new Vector3(5, 0, 9));    // Mid (connector junction)
+        WP("WP_TopAxis", new Vector3(6, 0, 24));   // Top Mid / Window
+        WP("WP_Catwalk", new Vector3(19, 0, 15));  // Connector (mid → A)
+        WP("WP_ACorr",   new Vector3(31, 0, -6));  // A Ramp choke
+        WP("WP_Garden",  new Vector3(46, 0, -4));  // Palace
+        WP("WP_Overlook",new Vector3(30, 0, 28));  // A overlook / CT cover
+        WP("WP_BAlley",  new Vector3(-22, 0, -14));// Apartments choke
+        WP("WP_Tunnel",  new Vector3(-14, 0, -17));// Underpass
+        WP("WP_Bazaar",  new Vector3(-40, 0, 30)); // Market
+        WP("WP_TBase",   new Vector3(2, 0, -40));
+        WP("WP_CTBase",  new Vector3(6, 0, 40));
+
+        PostPlant("A", new Vector3(38, 0, 23), 6f);
+        PostPlant("B", new Vector3(-38, 0, 7), 5.5f);
+
+        // ===== NAVMESH =====
         var surface = root.AddComponent<NavMeshSurface>();
         surface.collectObjects = CollectObjects.Children;
         surface.BuildNavMesh();
 
-        // ===== Wire the match systems =====
+        // ===== WIRE THE MATCH SYSTEMS =====
         if (roundManager != null) roundManager.SetSpawnPoints(tSpawns.ToArray(), ctSpawns.ToArray());
         if (bombManager != null) { bombManager.siteA = siteA; bombManager.siteB = siteB; }
         if (strategyExecutor != null) strategyExecutor.CacheWaypoints();
-        if (observerCamera != null) observerCamera.SetOverview(new Vector3(0, 78, -20), new Vector3(66, 0, 0));
+        if (observerCamera != null) observerCamera.SetOverview(new Vector3(0, 96, -26), new Vector3(67, 0, 0));
 
-        Debug.Log("MIRAGE: generated — A(ramp/palace/connector), B(apartments/market), mid");
+        Debug.Log("MIRAGE v2: A(ramp/palace/connector) • B(apps/short/market) • mid(window/connector/underpass)");
     }
 
-    // ===================== HELPERS =====================
+    // ===================== BUILD HELPERS =====================
 
     private GameObject Box(string name, Vector3 pos, Vector3 size, Color color)
     {
@@ -157,34 +188,39 @@ public class MirageGenerator : MonoBehaviour
         return go;
     }
 
-    private void Wall(float x, float z, float sx, float sz)
-        => Box("Wall", new Vector3(x, h / 2f, z), new Vector3(sx, h, sz), WallColor);
+    /// <summary>Wall segment between two floor points (auto length + rotation).</summary>
+    private void Seg(float x1, float z1, float x2, float z2, float thick = 1f)
+    {
+        Vector3 a = new Vector3(x1, 0, z1), b = new Vector3(x2, 0, z2);
+        Vector3 mid = (a + b) * 0.5f; mid.y = h / 2f;
+        float len = Vector3.Distance(a, b);
+        float ang = Mathf.Atan2(x2 - x1, z2 - z1) * Mathf.Rad2Deg;
+        var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        go.name = "Wall";
+        go.transform.SetParent(root.transform);
+        go.transform.position = mid;
+        go.transform.rotation = Quaternion.Euler(0, ang, 0);
+        go.transform.localScale = new Vector3(thick, h, len);
+        var r = go.GetComponent<Renderer>();
+        if (r != null) { var m = new Material(r.sharedMaterial); m.color = WallColor; r.material = m; }
+    }
 
     private void SiteFloor(string name, Vector3 c, float size)
         => Box($"Site_{name}", new Vector3(c.x, 0.02f, c.z), new Vector3(size, 0.05f, size), SiteColor);
 
     private void Crate(Vector3 pos, float sx, float sz)
-    {
-        pos.y = 1f;
-        Box("Crate", pos, new Vector3(sx, 2f, sz), CrateColor);
-    }
+        => Box("Crate", new Vector3(pos.x, 1f, pos.z), new Vector3(sx, 2f, sz), CrateColor);
 
-    private void ScatterSiteCover(Vector3 center, float radius, int count, Vector3 threatFrom)
+    private void SiteCrate(Vector3 pos, Vector3 threatFrom)
     {
-        for (int i = 0; i < count; i++)
-        {
-            float ang = (i / (float)count) * Mathf.PI * 2f;
-            Vector3 pos = center + new Vector3(Mathf.Cos(ang) * radius, 0, Mathf.Sin(ang) * radius);
-            var crate = Box("Crate", new Vector3(pos.x, 1f, pos.z), new Vector3(2f, 2f, 2f), CrateColor);
-
-            Vector3 away = (center - threatFrom).normalized;
-            var cpGO = new GameObject("CoverPoint");
-            cpGO.transform.SetParent(crate.transform.parent);
-            cpGO.transform.position = pos + away * 1.6f;
-            var cp = cpGO.AddComponent<CoverPoint>();
-            cp.peekDirection = -away;
-            cp.peekDistance = 1.6f;
-        }
+        var crate = Box("Crate", new Vector3(pos.x, 1f, pos.z), new Vector3(2.2f, 2f, 2.2f), CrateColor);
+        Vector3 away = (pos - threatFrom); away.y = 0; away = away.normalized;
+        var cpGO = new GameObject("CoverPoint");
+        cpGO.transform.SetParent(crate.transform.parent);
+        cpGO.transform.position = pos + away * 1.7f;
+        var cp = cpGO.AddComponent<CoverPoint>();
+        cp.peekDirection = -away;
+        cp.peekDistance = 1.7f;
     }
 
     private BombSite MakeSite(string name, Vector3 center, float plantRadius)

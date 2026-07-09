@@ -30,7 +30,8 @@
       "Bash(git commit --quiet -m 'Playtest #13 \\(log-driven\\): defuse chain repaired, plant guard, leaderless IGL, saves, AWP tune *)",
       "Bash(git commit --quiet -m 'Playtest #14 \\(log-driven\\): break the eternal-force spiral, defuse rush on man advantage *)",
       "Bash(git commit --quiet -m 'Playtest #15: rush smoke lands before contact, log survives mid-round quit *)",
-      "Bash(git commit --quiet -m 'Playtest #16: full-buy opening smokes so default rounds don'\\\\''t feed the AWP *)"
+      "Bash(git commit --quiet -m 'Playtest #16: full-buy opening smokes so default rounds don'\\\\''t feed the AWP *)",
+      "Bash(git commit --quiet -m 'Add MirageGenerator — CS-Mirage-style map on the fixed waypoint graph *)"
     ]
   }
 }

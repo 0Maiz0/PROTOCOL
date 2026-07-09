@@ -150,11 +150,37 @@ public class GrenadeManager : MonoBehaviour
             int budget = GetBudget(attackerBuyType);
             if (budget > 0) StartCoroutine(RushUtility(strategy.zone, budget));
         }
+        else if (side == TeamSide.Attacker && attackerBuyType == BuyType.Full)
+        {
+            // Default/Control/Fake used to walk into open AWP angles with ZERO
+            // util (R09: S1mple + Perfecto picked at 63m/52m with no smoke).
+            // Smoke the long sightlines on any full-buy opening.
+            if (GetBudget(attackerBuyType) > 0) StartCoroutine(OpeningSmokes());
+        }
 
         if (side == TeamSide.Defender)
         {
             int budget = GetBudget(defenderBuyType);
             if (budget > 0) StartCoroutine(CTOpeningUtility(budget));
+        }
+    }
+
+    /// <summary>
+    /// Full-buy opening smokes on the long mid/site sightlines so the team
+    /// isn't fed to a held AWP angle on default rounds.
+    /// </summary>
+    private IEnumerator OpeningSmokes()
+    {
+        yield return new WaitForSeconds(2f);
+        string[] sightlines = { "WP_Axis", "WP_Bridge", "WP_TopAxis" };
+        foreach (var wp in sightlines)
+        {
+            Vector3 target = GetWP(wp);
+            if (target == Vector3.zero) continue;
+            var thrower = PickThrower(TeamSide.Attacker, Role.Support, target);
+            if (thrower == null) continue;
+            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Smoke, target));
+            yield return new WaitForSeconds(utilitySpacing);
         }
     }
 

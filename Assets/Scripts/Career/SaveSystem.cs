@@ -69,6 +69,10 @@ public class CareerSaveData
     public List<CareerPlayer> scoutingPool;
     public List<MatchRecord> matchHistory;
 
+    // JsonUtility writes a default object for null — the flag marks a real bracket
+    public bool hasBracket;
+    public QualifierBracket bracket;
+
     public PCTier pcTier;
     public MonitorTier monitorTier;
     public int mouseBonus;

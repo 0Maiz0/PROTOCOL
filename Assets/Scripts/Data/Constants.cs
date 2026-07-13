@@ -138,6 +138,18 @@ public static class Constants
     public const int QUALIFIER_TIER_MAX = 65;
     public const float MATCH_END_RETURN_DELAY = 6f; // win screen time before returning home
 
+    // Qualifier bracket — 4 teams, single elim, played "in one evening"
+    // (the week only ticks when the bracket closes)
+    public const string PLAYER_TEAM_NAME = "YOUR SQUAD";
+    public const int QUALIFIER_PRIZE_CHAMPION = 6000;
+    public const int QUALIFIER_PRIZE_FINAL_LOSS = 2000;
+    public const float SIM_WINPROB_PER_OVR = 0.035f;   // win-prob shift per point of avg-OVR gap
+    public const float SIM_WINPROB_MIN = 0.12f;        // even a weak team can upset
+    public const float SIM_WINPROB_MAX = 0.88f;
+    public const float SIM_LOSER_SCORE_BASE = 11f;     // evenly matched sims end 13-11ish
+    public const float SIM_LOSER_SCORE_PER_OVR = 0.5f; // each OVR point of gap costs half a round
+    public const float SIM_LOSER_SCORE_JITTER = 3f;
+
     // Scenes
     public const string HOME_SCENE_NAME = "Home";
     public const string MATCH_SCENE_NAME = "SampleScene";
@@ -151,5 +163,5 @@ public static class Constants
 
     // Save
     public const string SAVE_FILE_NAME = "career_save.json";
-    public const int SAVE_VERSION = 3;
+    public const int SAVE_VERSION = 4;
 }

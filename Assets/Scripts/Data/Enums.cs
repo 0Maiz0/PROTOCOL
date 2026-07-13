@@ -13,3 +13,4 @@ public enum StrategyZone { NodeA, Axis, NodeB, Split }
 public enum StrategyType { Rush, Execute, Fake, Control, Default }
 public enum MidRoundCall { Commit, Rotate, SlowPlay, Save, HoldPositions, RotateA, RotateB, AggressivePush, CTSave }
 public enum OfferResult { Accepted, Countered, Rejected }
+public enum BracketStage { Semifinal, Final, Done }

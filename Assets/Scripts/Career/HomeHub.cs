@@ -81,8 +81,11 @@ public class HomeHub : MonoBehaviour
 
         if (cm.hasLastResult)
         {
+            // SF wins pay nothing (the money is in the final) — don't show "+$0"
+            string prizeNote = cm.lastPrize > 0 ? $"  (+${cm.lastPrize:N0})"
+                : cm.bracket != null && cm.bracket.stage == BracketStage.Final ? "  — FINAL tonight" : "";
             GUI.Label(new Rect(x, y, w, 24),
-                $"LAST MATCH vs {cm.lastOpponentName}: {(cm.lastMatchWon ? "WIN" : "LOSS")} {cm.lastPlayerScore}-{cm.lastEnemyScore}  (+${cm.lastPrize:N0})",
+                $"LAST MATCH vs {cm.lastOpponentName}: {(cm.lastMatchWon ? "WIN" : "LOSS")} {cm.lastPlayerScore}-{cm.lastEnemyScore}{prizeNote}",
                 Tint(h2, cm.lastMatchWon ? WinColor : LossColor));
         }
         y += 32;
@@ -111,27 +114,36 @@ public class HomeHub : MonoBehaviour
 
     private void DrawCalendar(CareerManager cm, float x, float y, float w)
     {
-        GUI.Label(new Rect(x, y, w, 24), "THIS WEEK", h2); y += 28;
-        GUI.Label(new Rect(x, y, w, 22), "Online qualifier open — opponent revealed at match start.", text); y += 24;
-        GUI.Label(new Rect(x, y, w, 22),
-            $"Prize: ${Constants.QUALIFIER_PRIZE_WIN:N0} win / ${Constants.QUALIFIER_PRIZE_LOSS:N0} loss.   Weekly net without a match: {FormatSigned(cm.WeeklyNet)}", dim);
-        y += 30;
-
+        var br = cm.bracket;
         bool canPlay = cm.roster.Count >= Constants.ROSTER_SIZE;
-        if (!canPlay)
-        {
-            GUI.Label(new Rect(x, y, w, 22),
-                $"Roster incomplete ({cm.roster.Count}/{Constants.ROSTER_SIZE}) — sign free agents in SCOUTING before playing.", Tint(text, WarnColor));
-            y += 26;
-        }
 
-        GUI.enabled = canPlay;
-        if (GUI.Button(new Rect(x, y, 270, 46), "PLAY QUALIFIER", btn))
-            cm.StartQualifierMatch();
-        GUI.enabled = true;
-        if (GUI.Button(new Rect(x + 290, y, 270, 46), "SKIP WEEK", btn))
-            cm.AdvanceWeek();
-        y += 62;
+        if (br == null)
+        {
+            GUI.Label(new Rect(x, y, w, 24), "THIS WEEK", h2); y += 28;
+            GUI.Label(new Rect(x, y, w, 22), "Online qualifier open — 4 teams, single elimination, played in one evening.", text); y += 24;
+            GUI.Label(new Rect(x, y, w, 22),
+                $"Champion ${Constants.QUALIFIER_PRIZE_CHAMPION:N0} / runner-up ${Constants.QUALIFIER_PRIZE_FINAL_LOSS:N0} / semifinal exit ${Constants.QUALIFIER_PRIZE_LOSS:N0}.   Weekly net without a match: {FormatSigned(cm.WeeklyNet)}", dim);
+            y += 30;
+
+            if (!canPlay)
+            {
+                GUI.Label(new Rect(x, y, w, 22),
+                    $"Roster incomplete ({cm.roster.Count}/{Constants.ROSTER_SIZE}) — sign free agents in SCOUTING before playing.", Tint(text, WarnColor));
+                y += 26;
+            }
+
+            GUI.enabled = canPlay;
+            if (GUI.Button(new Rect(x, y, 270, 46), "ENTER QUALIFIER", btn))
+                cm.EnterQualifier();
+            GUI.enabled = true;
+            if (GUI.Button(new Rect(x + 290, y, 270, 46), "SKIP WEEK", btn))
+                cm.AdvanceWeek();
+            y += 62;
+        }
+        else
+        {
+            y = DrawBracket(cm, br, x, y, w, canPlay);
+        }
 
         GUI.Label(new Rect(x, y, w, 24), "RECENT RESULTS", h2); y += 28;
         if (cm.matchHistory.Count == 0)
@@ -139,15 +151,104 @@ public class HomeHub : MonoBehaviour
             GUI.Label(new Rect(x, y, w, 22), "No matches played yet.", dim);
             return;
         }
-        int shown = Mathf.Min(cm.matchHistory.Count, 10);
+        int shown = Mathf.Min(cm.matchHistory.Count, br == null ? 10 : 5);
         for (int i = 0; i < shown; i++)
         {
             var r = cm.matchHistory[i];
+            string st = string.IsNullOrEmpty(r.stage) ? "" : $"[{r.stage}] ";
             GUI.Label(new Rect(x, y, w, 22),
-                $"Week {r.week} — {(r.won ? "WIN " : "LOSS")} {r.playerScore}-{r.enemyScore} vs {r.opponentName}  (+${r.prize:N0})",
+                $"Week {r.week} — {st}{(r.won ? "WIN " : "LOSS")} {r.playerScore}-{r.enemyScore} vs {r.opponentName}  (+${r.prize:N0})",
                 Tint(text, r.won ? WinColor : LossColor));
             y += 24;
         }
+    }
+
+    // ===================== QUALIFIER BRACKET =====================
+
+    /// <summary>The 4-team bracket: two semis feeding the final. Returns the next y.</summary>
+    private float DrawBracket(CareerManager cm, QualifierBracket br, float x, float y, float w, bool canPlay)
+    {
+        GUI.Label(new Rect(x, y, w, 24), $"QUALIFIER BRACKET — week {br.week}", h2); y += 30;
+
+        string you = Constants.PLAYER_TEAM_NAME;
+
+        DrawBracketMatch(x, y, "SEMIFINAL 1", you, br.sfOpponent.teamName,
+            br.sf1Played, br.sf1YourScore, br.sf1OppScore, br.sf1Won);
+
+        int bScore = br.sf2WinnerIsB ? br.sf2WinnerScore : br.sf2LoserScore;
+        int cScore = br.sf2WinnerIsB ? br.sf2LoserScore : br.sf2WinnerScore;
+        DrawBracketMatch(x, y + 76, "SEMIFINAL 2", br.teamB.teamName, br.teamC.teamName,
+            br.sf2Played, bScore, cScore, br.sf2WinnerIsB);
+
+        string fTop, fBot;
+        int fTopScore = 0, fBotScore = 0;
+        if (br.finalPlayed)
+        {
+            fTop = br.finalWinnerName; fBot = br.finalLoserName;
+            fTopScore = br.finalWinnerScore; fBotScore = br.finalLoserScore;
+        }
+        else if (br.stage == BracketStage.Final && br.FinalOpponent != null)
+        {
+            fTop = you; fBot = br.FinalOpponent.teamName;
+        }
+        else
+        {
+            fTop = "SF1 winner"; fBot = "SF2 winner";
+        }
+        DrawBracketMatch(x + 330, y + 38, "FINAL", fTop, fBot, br.finalPlayed, fTopScore, fBotScore, true);
+
+        if (br.finalPlayed)
+        {
+            GUI.Label(new Rect(x + 660, y + 48, 220, 20), "CHAMPION", dim);
+            GUI.Label(new Rect(x + 660, y + 68, 220, 26), br.finalWinnerName,
+                Tint(h2, br.championIsYou ? WinColor : WarnColor));
+        }
+        y += 160;
+
+        if (br.stage == BracketStage.Done)
+        {
+            GUI.enabled = canPlay;
+            if (GUI.Button(new Rect(x, y, 270, 46), "ENTER QUALIFIER", btn))
+                cm.EnterQualifier();
+            GUI.enabled = true;
+            if (GUI.Button(new Rect(x + 290, y, 270, 46), "SKIP WEEK", btn))
+                cm.AdvanceWeek();
+            y += 58;
+        }
+        else
+        {
+            if (!canPlay)
+            {
+                GUI.Label(new Rect(x, y, w, 22),
+                    $"Roster incomplete ({cm.roster.Count}/{Constants.ROSTER_SIZE}) — sign free agents in SCOUTING first.", Tint(text, WarnColor));
+                y += 26;
+            }
+            GUI.enabled = canPlay;
+            string label = br.stage == BracketStage.Semifinal ? "PLAY SEMIFINAL" : "PLAY FINAL";
+            if (GUI.Button(new Rect(x, y, 270, 46), label, btn))
+                cm.PlayBracketMatch();
+            GUI.enabled = true;
+            GUI.Label(new Rect(x + 290, y + 4, w - 290, 40),
+                br.stage == BracketStage.Final
+                    ? "Same evening — tune protocols and roles before the final."
+                    : $"Champion ${Constants.QUALIFIER_PRIZE_CHAMPION:N0} / runner-up ${Constants.QUALIFIER_PRIZE_FINAL_LOSS:N0} / SF exit ${Constants.QUALIFIER_PRIZE_LOSS:N0}", dim);
+            y += 58;
+        }
+        return y + 6;
+    }
+
+    /// <summary>One bracket box: title + two teams, winner green / loser red once played.</summary>
+    private void DrawBracketMatch(float x, float y, string title, string top, string bot,
+        bool played, int topScore, int botScore, bool topWon)
+    {
+        GUI.Box(new Rect(x, y, 310, 70), "");
+        GUI.Label(new Rect(x + 10, y + 3, 290, 16), title, dim);
+        var topStyle = Tint(text, !played ? Color.white : (topWon ? WinColor : LossColor));
+        var botStyle = Tint(text, !played ? Color.white : (topWon ? LossColor : WinColor));
+        GUI.Label(new Rect(x + 10, y + 22, 235, 20), top, topStyle);
+        GUI.Label(new Rect(x + 255, y + 22, 45, 20), played ? topScore.ToString() : "—", topStyle);
+        GUI.Label(new Rect(x + 10, y + 44, 235, 20), bot, botStyle);
+        GUI.Label(new Rect(x + 255, y + 44, 45, 20), played ? botScore.ToString() : "—", botStyle);
     }
 
     // ===================== ROSTER =====================

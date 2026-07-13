@@ -19,7 +19,7 @@ CS2-inspired esports team management sim. Player = coach. **Core identity (desig
 
 Match engine is built and playable. Two coaching phases work (opening call + mid-round call). Core systems: combat, economy, strategies, grenades, audio, HUD, observer camera, AI coach, halftime swap.
 
-**Sprint 2 in progress** (management loop). Phases A+B+C done: career spine — persistent `CareerManager`, generated roster/scouting pool, Home ↔ match scene flow, prize money + weekly expenses — tabbed management hub (Calendar/Roster/Scouting/Shop/Budget), JSON auto-save (`career_save.json`, saveVersion migration), scouting offers with ego-driven negotiation (accept / one final counter / reject-raises-ask), role reassignment (`assignedRole` feeds engine via `ToPlayerData`), releases back to pool, qualifier blocked when roster < 5. ALL game UI is IMGUI (OnGUI) — keep new UI on the same stack; uGUI migration is a single later pass. Next phases: D (equipment shop purchases), E (3D apartment, chemistry, personality effects). Match engine TODO: late-round call (3rd coaching phase).
+**Sprint 2 in progress** (management loop). Phases A+B+C done: career spine — persistent `CareerManager`, generated roster/scouting pool, Home ↔ match scene flow, prize money + weekly expenses — tabbed management hub (Calendar/Roster/Scouting/Shop/Budget), JSON auto-save (`career_save.json`, saveVersion migration), scouting offers with ego-driven negotiation (accept / one final counter / reject-raises-ask), role reassignment (`assignedRole` feeds engine via `ToPlayerData`), releases back to pool, qualifier blocked when roster < 5. Qualifier = 4-team single-elim bracket (`QualifierBracket`, save v4): your semifinal + simulated other semi (avg-OVR weighted roll) → final, all "in one evening" — the week ticks once when the bracket closes; between matches you're in the hub and can tune protocols/roles. ALL game UI is IMGUI (OnGUI) — keep new UI on the same stack; uGUI migration is a single later pass. Next phases: D (equipment shop purchases), E (3D apartment, chemistry, personality effects). Match engine TODO: late-round call (3rd coaching phase).
 
 ## Architecture Rules (CRITICAL)
 
@@ -67,6 +67,7 @@ Match engine is built and playable. Two coaching phases work (opening call + mid
 | `HomeHub.cs` | Tabbed management hub (Calendar/Roster/Scouting/Shop/Budget), IMGUI |
 | `SaveSystem.cs` | JSON career save/load (CareerSaveData) in persistentDataPath |
 | `MatchRecord.cs` | One career match result — part of the save |
+| `QualifierBracket.cs` | 4-team single-elim qualifier: your SF + simmed other semi → final, one-evening pacing |
 | `CommsFeed.cs` | On-screen team voice feed (player team only) — tuning window into bot decisions |
 | `IGLBrain.cs` | Player-team IGL CALLS the game: strategy, commit timing, rotations (Leadership-scaled) |
 | `TeamProtocols.cs` | Coach's pre-match fingerprint: aggression, economy discipline, lurker (career-saved) |

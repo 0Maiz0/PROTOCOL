@@ -20,6 +20,7 @@ public class CareerManager : MonoBehaviour
     public List<CareerPlayer> scoutingPool = new List<CareerPlayer>();
     public List<MatchRecord> matchHistory = new List<MatchRecord>();
     public TeamProtocols protocols = new TeamProtocols();
+    public QualifierBracket bracket; // null = no qualifier entered
 
     public EquipmentBonuses TeamEquipment { get; private set; }
 
@@ -80,6 +81,7 @@ public class CareerManager : MonoBehaviour
         foreach (var p in roster) p.isSigned = true;
         scoutingPool = PlayerGenerator.GeneratePool(Constants.SCOUTING_POOL_SIZE);
         matchHistory = new List<MatchRecord>();
+        bracket = null;
         hasLastResult = false;
         TeamEquipment = ScriptableObject.CreateInstance<EquipmentBonuses>();
         Debug.Log($"CAREER: new career started — budget ${budget}, roster {roster.Count}, pool {scoutingPool.Count}");
@@ -110,9 +112,18 @@ public class CareerManager : MonoBehaviour
         // Migration: pre-protocols saves deserialize protocols zeroed — reset to defaults
         protocols = data.saveVersion < 3 || data.protocols == null ? new TeamProtocols() : data.protocols;
 
+        // Migration: pre-bracket saves have no qualifier in progress
+        bracket = data.saveVersion >= 4 && data.hasBracket ? data.bracket : null;
+
         // Keep generated enemies/free agents from colliding with saved nicknames
         PlayerGenerator.RegisterExistingNicknames(roster);
         PlayerGenerator.RegisterExistingNicknames(scoutingPool);
+        if (bracket != null)
+        {
+            PlayerGenerator.RegisterExistingNicknames(bracket.sfOpponent?.players);
+            PlayerGenerator.RegisterExistingNicknames(bracket.teamB?.players);
+            PlayerGenerator.RegisterExistingNicknames(bracket.teamC?.players);
+        }
 
         if (roster.Count == 0)
         {
@@ -135,6 +146,8 @@ public class CareerManager : MonoBehaviour
             roster = roster,
             scoutingPool = scoutingPool,
             matchHistory = matchHistory,
+            hasBracket = bracket != null,
+            bracket = bracket,
             pcTier = TeamEquipment.pcTier,
             monitorTier = TeamEquipment.monitorTier,
             mouseBonus = TeamEquipment.mouseBonus,
@@ -227,11 +240,27 @@ public class CareerManager : MonoBehaviour
 
     // ===================== MATCH FLOW =====================
 
-    public void StartQualifierMatch()
+    /// <summary>
+    /// Open a fresh 4-team bracket — all opponents revealed in the Calendar tab.
+    /// Replaces a finished bracket; does NOT load the match scene.
+    /// </summary>
+    public void EnterQualifier()
     {
-        nextOpponentName = PlayerGenerator.GenerateTeamName();
-        nextOpponentPlayers = PlayerGenerator.GenerateEnemyTeam(Constants.QUALIFIER_TIER_MIN, Constants.QUALIFIER_TIER_MAX);
-        Debug.Log($"CAREER: entering qualifier vs {nextOpponentName}");
+        bracket = QualifierBracket.Create(currentWeek);
+        Save();
+        Debug.Log($"CAREER: entered qualifier — SF vs {bracket.sfOpponent.teamName} " +
+            $"(also in: {bracket.teamB.teamName}, {bracket.teamC.teamName})");
+    }
+
+    /// <summary>Load the match scene for the current bracket stage (semifinal or final).</summary>
+    public void PlayBracketMatch()
+    {
+        if (bracket == null || bracket.stage == BracketStage.Done) return;
+        BracketTeam opp = bracket.stage == BracketStage.Semifinal ? bracket.sfOpponent : bracket.FinalOpponent;
+        if (opp == null) return;
+        nextOpponentName = opp.teamName;
+        nextOpponentPlayers = opp.players;
+        Debug.Log($"CAREER: playing qualifier {bracket.stage} vs {opp.teamName}");
         SceneManager.LoadScene(Constants.MATCH_SCENE_NAME);
     }
 
@@ -248,7 +277,7 @@ public class CareerManager : MonoBehaviour
 
     public PlayerData[] BuildEnemyTeamData()
     {
-        // Guard for a match scene loaded without StartQualifierMatch()
+        // Guard for a match scene loaded without PlayBracketMatch()
         if (nextOpponentPlayers == null)
             nextOpponentPlayers = PlayerGenerator.GenerateEnemyTeam(Constants.QUALIFIER_TIER_MIN, Constants.QUALIFIER_TIER_MAX);
 
@@ -259,18 +288,54 @@ public class CareerManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Called by RoundManager when the match ends. Applies prize money, records history,
-    /// consumes the week (salaries + rent, sponsor income) and returns to the Home scene.
+    /// Called by RoundManager when the match ends. Advances the bracket, applies prize
+    /// money and records history. The week is consumed only when the bracket closes
+    /// (bracket runs "in one evening") — or immediately for standalone matches.
     /// </summary>
     public void OnMatchFinished(bool playerWon, int playerScore, int enemyScore)
     {
-        int prize = playerWon ? Constants.QUALIFIER_PRIZE_WIN : Constants.QUALIFIER_PRIZE_LOSS;
+        int prize;
+        string stageLabel = null;
+        bool bracketStillRunning = false;
+
+        if (bracket != null && bracket.stage == BracketStage.Semifinal)
+        {
+            stageLabel = "SF";
+            bracket.RecordYourSemifinal(playerWon, playerScore, enemyScore);
+            bracket.SimulateOtherSemifinal();
+            if (playerWon)
+            {
+                prize = 0; // the money is in the final
+                bracket.stage = BracketStage.Final;
+                bracketStillRunning = true;
+            }
+            else
+            {
+                prize = Constants.QUALIFIER_PRIZE_LOSS;
+                bracket.SimulateFinalWithoutYou();
+                bracket.stage = BracketStage.Done;
+            }
+        }
+        else if (bracket != null && bracket.stage == BracketStage.Final)
+        {
+            stageLabel = "FINAL";
+            bracket.RecordFinal(playerWon, playerScore, enemyScore);
+            prize = playerWon ? Constants.QUALIFIER_PRIZE_CHAMPION : Constants.QUALIFIER_PRIZE_FINAL_LOSS;
+            bracket.stage = BracketStage.Done;
+        }
+        else
+        {
+            // Match scene played without a bracket (direct scene test / legacy save)
+            prize = playerWon ? Constants.QUALIFIER_PRIZE_WIN : Constants.QUALIFIER_PRIZE_LOSS;
+        }
+
         budget += prize;
 
         matchHistory.Insert(0, new MatchRecord
         {
             week = currentWeek,
             opponentName = nextOpponentName,
+            stage = stageLabel,
             won = playerWon,
             playerScore = playerScore,
             enemyScore = enemyScore,
@@ -285,8 +350,13 @@ public class CareerManager : MonoBehaviour
         lastOpponentName = nextOpponentName;
         nextOpponentPlayers = null;
 
-        Debug.Log($"CAREER: match {(playerWon ? "WON" : "LOST")} {playerScore}-{enemyScore} vs {lastOpponentName}, prize ${prize}");
-        AdvanceWeek();
+        Debug.Log($"CAREER: {stageLabel ?? "match"} {(playerWon ? "WON" : "LOST")} {playerScore}-{enemyScore} vs {lastOpponentName}, prize ${prize}");
+
+        if (bracketStillRunning)
+            Save(); // same evening — the final is next, no week tick between matches
+        else
+            AdvanceWeek();
+
         SceneManager.LoadScene(Constants.HOME_SCENE_NAME);
     }
 

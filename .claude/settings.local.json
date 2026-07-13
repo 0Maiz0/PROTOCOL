@@ -34,7 +34,15 @@
       "Bash(git commit --quiet -m 'Add MirageGenerator — CS-Mirage-style map on the fixed waypoint graph *)",
       "Bash(git commit --quiet -m 'MirageGenerator v2: real de_mirage layout blockout *)",
       "Bash(git commit --quiet -m 'MirageGenerator v3: enclosed rooms + corridors so the footprint reads as a map *)",
-      "Bash(git commit --quiet -m 'Add Mirage GameObject with MirageGenerator to the match scene *)"
+      "Bash(git commit --quiet -m 'Add Mirage GameObject with MirageGenerator to the match scene *)",
+      "PowerShell($c = Get-Command claude -ErrorAction SilentlyContinue; if \\($c\\) { \"claude found at: $\\($c.Source\\)\"; try { claude --version } catch {} } else { \"claude NOT on PATH\" })",
+      "PowerShell(& \"C:\\\\Users\\\\Maiz\\\\AppData\\\\Roaming\\\\Claude\\\\claude-code\\\\2.1.205\\\\claude.exe\" --version)",
+      "WebFetch(domain:github.com)",
+      "PowerShell(& \"C:\\\\Users\\\\Maiz\\\\AppData\\\\Roaming\\\\Claude\\\\claude-code\\\\2.1.205\\\\claude.exe\" plugin marketplace add forrestchang/andrej-karpathy-skills)",
+      "PowerShell(& \"C:\\\\Users\\\\Maiz\\\\AppData\\\\Roaming\\\\Claude\\\\claude-code\\\\2.1.205\\\\claude.exe\" plugin marketplace add https://github.com/forrestchang/andrej-karpathy-skills.git)",
+      "PowerShell(& \"C:\\\\Users\\\\Maiz\\\\AppData\\\\Roaming\\\\Claude\\\\claude-code\\\\2.1.205\\\\claude.exe\" plugin install andrej-karpathy-skills@karpathy-skills)",
+      "WebSearch",
+      "Bash(git commit --quiet -m 'Update local Claude Code permission allowlist *)"
     ]
   }
 }

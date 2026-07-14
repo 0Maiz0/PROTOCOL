@@ -31,6 +31,7 @@ public class BombManager : MonoBehaviour
     public string PlantedSiteName => plantedSite;
 
     public event System.Action<string> OnBombPlanted;
+    public event System.Action<string> OnPlantStarted; // plant begins — guards spread NOW
     public event System.Action OnBombExploded;
     public event System.Action OnBombDefused;
     public event System.Action<float> OnPlantProgress;
@@ -232,6 +233,7 @@ public class BombManager : MonoBehaviour
 
             CommsFeed.Post(planter.Profile.Data.nickname, $"planting the bomb on {site.siteName}!", TeamSide.Attacker);
             Debug.Log($"PLANTING on {site.siteName}... (bot stopped)");
+            OnPlantStarted?.Invoke(site.siteName);
         }
 
         plantProgress += Time.deltaTime / plantTime;

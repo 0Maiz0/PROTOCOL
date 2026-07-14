@@ -189,7 +189,8 @@ public class GrenadeManager : MonoBehaviour
     private IEnumerator OpeningSmokes()
     {
         yield return new WaitForSeconds(2f);
-        string[] sightlines = { "WP_Axis", "WP_Bridge", "WP_TopAxis" };
+        // WP_TopAxis dropped — the reworked map doesn't need that smoke (playtest #20)
+        string[] sightlines = { "WP_Axis", "WP_Bridge" };
         foreach (var wp in sightlines)
         {
             Vector3 target = GetWP(wp);

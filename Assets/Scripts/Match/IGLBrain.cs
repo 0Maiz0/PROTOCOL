@@ -22,6 +22,7 @@ public class IGLBrain : MonoBehaviour
     private StrategyExecutor strategyExecutor;
     private GrenadeManager grenadeManager;
     private BombManager bombManager;
+    private MatchEconomy economy;
 
     private float evalTimer;
     private float rotateCooldown;
@@ -41,7 +42,12 @@ public class IGLBrain : MonoBehaviour
         strategyExecutor = FindObjectOfType<StrategyExecutor>();
         grenadeManager = FindObjectOfType<GrenadeManager>();
         bombManager = FindObjectOfType<BombManager>();
+        economy = FindObjectOfType<MatchEconomy>();
     }
+
+    /// <summary>On an eco there's nothing worth saving — play the round out.</summary>
+    private bool NothingToSave =>
+        economy != null && economy.GetEconomy(mySide).currentBuyType == BuyType.Eco;
 
     /// <summary>Called by RoundManager at freeze time, before the opening pick.</summary>
     public void SetTeam(List<BotController> bots, List<BotController> enemies, TeamSide side)
@@ -200,7 +206,9 @@ public class IGLBrain : MonoBehaviour
         evalTimer -= Time.deltaTime;
         if (mySide == TeamSide.Defender)
         {
-            if (!igl.Profile.IsAlive) return; // dead IGL: no defensive reads/rotations
+            // A dead IGL used to shut the CT brain off completely — playtest #20
+            // R17: IGL died at 21s, zero rotations, T walked the site. Someone
+            // alive still calls it, just slower and off thinner reads.
             if (rotateCooldown > 0f) rotateCooldown -= Time.deltaTime;
             if (evalTimer <= 0f)
             {
@@ -261,8 +269,8 @@ public class IGLBrain : MonoBehaviour
         if (mine == 0) return;
         float elapsed = Time.time - roundStartTime;
 
-        // Round is lost — save the guns
-        if (!saveCalled && mine <= 2 && theirs - mine >= 2 && elapsed > 30f)
+        // Round is lost — save the guns (only if there ARE guns to save)
+        if (!saveCalled && GunsWorthSaving() && mine <= 2 && theirs - mine >= 2 && elapsed > 30f)
         {
             saveCalled = true;
             Voice(Flavor("numbers are bad — save the guns",
@@ -389,9 +397,12 @@ public class IGLBrain : MonoBehaviour
 
     private void EvaluateDefense()
     {
+        bool leaderless = igl?.Profile == null || !igl.Profile.IsAlive;
+
         // Hold is hopeless (badly outnumbered pre-plant) — save the guns,
-        // carryover makes this real money next round
-        if (!saveCalled && bombManager != null && !bombManager.IsPlanted)
+        // carryover makes this real money next round. Nothing to save on an
+        // eco (playtest #20 R04: "what are they saving" — pistols) → fight.
+        if (!saveCalled && bombManager != null && !bombManager.IsPlanted && GunsWorthSaving())
         {
             int mine = CountAlive(myBots), theirs = CountAlive(enemyBots);
             if (mine > 0 && mine <= 2 && theirs - mine >= 2 && Time.time - roundStartTime > 40f)
@@ -415,9 +426,22 @@ public class IGLBrain : MonoBehaviour
         int sigB = CommsManager.Instance.CountKnownEnemiesNear(mySide, bWP.transform.position, Constants.CT_SIGNAL_RANGE)
                  + CountEnemyUtilNear(bWP.transform.position);
 
-        int threshold = Leadership > 0.6f ? 2 : 3; // sharp IGLs read thinner info
+        // Sharp IGLs read thinner info; a leaderless team needs it obvious
+        int threshold = (Leadership > 0.6f ? 2 : 3) + (leaderless ? 1 : 0);
         if (sigA - sigB >= threshold) RotateDefense("A", aWP.transform, bWP.transform.position);
         else if (sigB - sigA >= threshold) RotateDefense("B", bWP.transform, aWP.transform.position);
+    }
+
+    /// <summary>Rifles are worth exiting with — eco pistols are not.</summary>
+    private bool GunsWorthSaving()
+    {
+        foreach (var b in myBots)
+        {
+            if (b?.Profile == null || !b.Profile.IsAlive) continue;
+            string w = b.Profile.CurrentWeapon.weaponName;
+            if (w == "AK-47/M4" || w == "AWP" || w == "Galil/Famas") return true;
+        }
+        return false;
     }
 
     private int CountEnemyUtilNear(Vector3 pos)
@@ -435,6 +459,7 @@ public class IGLBrain : MonoBehaviour
     private void RotateDefense(string site, Transform target, Vector3 anchorSite)
     {
         rotateCooldown = Mathf.Lerp(16f, 10f, Leadership);
+        if (igl?.Profile == null || !igl.Profile.IsAlive) rotateCooldown *= 1.5f; // leaderless = sluggish
 
         // One anchor stays on the far site — never fully abandon it
         BotController anchor = null;

@@ -459,6 +459,14 @@ public class ObserverCamera : MonoBehaviour
 	/// <summary>The bot the camera follows — PlayerHUD highlights its card.</summary>
 	public Transform FollowTarget => currentTarget;
 
+	private void OnDestroy()
+	{
+		// Free-cam/orbit locks the cursor — returning to the Home scene with it
+		// still locked left the hub unclickable (couldn't play the final)
+		Cursor.lockState = CursorLockMode.None;
+		Cursor.visible = true;
+	}
+
 	private void OnGUI()
 	{
 		// Compact bottom-center strip — the old bottom-left box + player list

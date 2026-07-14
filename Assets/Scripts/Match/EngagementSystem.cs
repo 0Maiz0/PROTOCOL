@@ -156,9 +156,18 @@ public class EngagementSystem : MonoBehaviour
             float dist = Vector3.Distance(transform.position, enemyPos);
 
             // CT HOLD — they pre-aim intel via scan points and shoot from position;
-            // chasing info made them wander instead of holding angles
+            // chasing info made them wander instead of holding angles.
+            // EXCEPTION — collapse: badly outnumbered, the round is being decided
+            // elsewhere; holding an empty angle is how you watch your team die
+            // (playtest #20: "vandal just standing in mid, he could have helped")
             if (myBot.Side == TeamSide.Defender)
-                return;
+            {
+                int mine = 0, theirs = 0;
+                foreach (var s in allSystems)
+                    if (s.myBot?.Profile != null && s.myBot.Profile.IsAlive)
+                    { if (s.myBot.Side == myBot.Side) mine++; else theirs++; }
+                if (theirs - mine < 2) return; // normal hold discipline
+            }
 
             // AWP doesn't chase — holds position
             if (myBot.Profile.AssignedRole == Role.AWPer)
@@ -479,6 +488,11 @@ public class EngagementSystem : MonoBehaviour
             hitChance *= profile.CurrentWeapon.weaponName == "AWP"
                 ? Constants.TARGET_MOVE_PENALTY_AWP
                 : Constants.TARGET_MOVE_PENALTY;
+
+        // Point-blank floor: nobody whiffs a whole mag at 2m (playtest #20:
+        // two bots stared each other down face to face trading misses)
+        if (distance < Constants.POINTBLANK_RANGE)
+            hitChance = Mathf.Max(hitChance, Constants.POINTBLANK_HITCHANCE_FLOOR);
 
         bool isHit = Random.value < hitChance;
 

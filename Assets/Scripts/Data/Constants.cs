@@ -131,6 +131,14 @@ public static class Constants
     public const float CLOSE_RANGE_NO_COVER = 9f;    // point-blank: no cover cycling, stand and fight
     public const float EVADE_COOLDOWN = 1.5f;        // one dodge, then turn and face the shooter
 
+    // Playtest #20: rotations don't yank site-adjacent holders through the open
+    public const float ROTATE_ALREADY_THERE_RANGE = 20f;
+
+    // Playtest #20: two bots trading misses face to face at 2m looked absurd —
+    // point-blank shots get a hit-chance floor no matter the spray/movement
+    public const float POINTBLANK_RANGE = 5f;
+    public const float POINTBLANK_HITCHANCE_FLOOR = 0.4f;
+
     // Playtest #19: CT utility is the site hold — CS meta buys it before rifles.
     // The bank cap starved losing CTs to 1-2 nades while T ran 8 (R03-R06).
     public const int CT_UTIL_FLOOR_FULL = 3;

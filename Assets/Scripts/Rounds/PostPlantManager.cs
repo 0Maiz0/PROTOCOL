@@ -42,6 +42,7 @@ public class PostPlantManager : MonoBehaviour
         if (bombManager != null)
         {
             bombManager.OnBombPlanted += OnBombPlanted;
+            bombManager.OnPlantStarted += OnPlantStarted;
             bombManager.OnDefuseProgress += OnDefuseProgress;
         }
         if (grenadeManager == null) grenadeManager = FindObjectOfType<GrenadeManager>();
@@ -51,7 +52,21 @@ public class PostPlantManager : MonoBehaviour
     private void OnDestroy()
     {
         if (bombManager != null)
-        { bombManager.OnBombPlanted -= OnBombPlanted; bombManager.OnDefuseProgress -= OnDefuseProgress; }
+        {
+            bombManager.OnBombPlanted -= OnBombPlanted;
+            bombManager.OnPlantStarted -= OnPlantStarted;
+            bombManager.OnDefuseProgress -= OnDefuseProgress;
+        }
+    }
+
+    /// <summary>
+    /// The plant is the vulnerable moment — the second it STARTS, teammates
+    /// spread to the post-plant spots instead of huddling on the planter
+    /// (playtest #20: "why do all Ts go to the plant when one should").
+    /// </summary>
+    private void OnPlantStarted(string site)
+    {
+        StartCoroutine(DoPostPlant(site));
     }
 
     public void SetBotReferences(List<BotController> a, List<BotController> d) { attackerBots = a; defenderBots = d; }
@@ -123,6 +138,7 @@ public class PostPlantManager : MonoBehaviour
         HashSet<int> used = new HashSet<int>();
         foreach (var bot in alive)
         {
+            if (bot.IsPlanting) continue; // the planter stays on the bomb
             float best = float.MaxValue; int bestIdx = -1;
             for (int i = 0; i < spots.Count; i++)
             {
@@ -145,9 +161,16 @@ public class PostPlantManager : MonoBehaviour
         List<BotController> alive = GetAlive(defenderBots);
         if (alive.Count == 0) yield break;
 
-        // Hopeless retake (1v4, 2v5...) — save the guns and exit instead of feeding
+        // Hopeless retake (1v4, 2v5...) — save the guns and exit instead of
+        // feeding. Pistols aren't worth saving — those go for the retake.
+        bool hasGuns = false;
+        foreach (var b in alive)
+        {
+            string w = b.Profile.CurrentWeapon.weaponName;
+            if (w == "AK-47/M4" || w == "AWP" || w == "Galil/Famas") { hasGuns = true; break; }
+        }
         int tAlive = GetAlive(attackerBots).Count;
-        if (alive.Count <= 2 && tAlive - alive.Count >= 2)
+        if (hasGuns && alive.Count <= 2 && tAlive - alive.Count >= 2)
         {
             if (wpCache.TryGetValue("WP_Garden", out Transform saveSpot))
             {

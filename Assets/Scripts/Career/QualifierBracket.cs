@@ -123,9 +123,10 @@ public class QualifierBracket
         var opp = FinalOpponent;
         finalPlayed = true;
         championIsYou = won;
+        string you = CareerManager.TeamDisplayName;
         if (won)
         {
-            finalWinnerName = Constants.PLAYER_TEAM_NAME;
+            finalWinnerName = you;
             finalWinnerScore = yourScore;
             finalLoserName = opp.teamName;
             finalLoserScore = oppScore;
@@ -134,7 +135,7 @@ public class QualifierBracket
         {
             finalWinnerName = opp.teamName;
             finalWinnerScore = oppScore;
-            finalLoserName = Constants.PLAYER_TEAM_NAME;
+            finalLoserName = you;
             finalLoserScore = yourScore;
         }
     }

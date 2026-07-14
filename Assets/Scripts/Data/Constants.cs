@@ -177,5 +177,5 @@ public static class Constants
 
     // Save
     public const string SAVE_FILE_NAME = "career_save.json";
-    public const int SAVE_VERSION = 4;
+    public const int SAVE_VERSION = 5;
 }

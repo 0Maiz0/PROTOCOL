@@ -62,6 +62,7 @@ public static class SaveSystem
 public class CareerSaveData
 {
     public int saveVersion;
+    public string teamName;
     public int budget;
     public TeamProtocols protocols;
     public int currentWeek;

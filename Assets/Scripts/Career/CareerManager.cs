@@ -14,6 +14,7 @@ public class CareerManager : MonoBehaviour
     public static CareerManager Instance { get; private set; }
 
     [Header("Career State")]
+    public string teamName = ""; // empty → HomeHub shows the naming screen
     public int budget;
     public int currentWeek = 1;
     public List<CareerPlayer> roster = new List<CareerPlayer>();
@@ -23,6 +24,18 @@ public class CareerManager : MonoBehaviour
     public QualifierBracket bracket; // null = no qualifier entered
 
     public EquipmentBonuses TeamEquipment { get; private set; }
+
+    /// <summary>The player's org name everywhere it's shown — bracket, intro, history.</summary>
+    public static string TeamDisplayName =>
+        Instance != null && !string.IsNullOrEmpty(Instance.teamName)
+            ? Instance.teamName : Constants.PLAYER_TEAM_NAME;
+
+    public void SetTeamName(string name)
+    {
+        teamName = name.Trim();
+        Save();
+        Debug.Log($"CAREER: org founded — {teamName}");
+    }
 
     [Header("Next Match")]
     public string nextOpponentName;
@@ -75,6 +88,7 @@ public class CareerManager : MonoBehaviour
 
     private void InitNewCareer()
     {
+        teamName = ""; // fresh org — HomeHub asks for the name
         budget = Constants.STARTING_BUDGET;
         currentWeek = 1;
         roster = PlayerGenerator.GenerateStartingRoster();
@@ -115,6 +129,9 @@ public class CareerManager : MonoBehaviour
         // Migration: pre-bracket saves have no qualifier in progress
         bracket = data.saveVersion >= 4 && data.hasBracket ? data.bracket : null;
 
+        // Migration: pre-v5 saves have no org name — the naming screen appears once
+        teamName = data.saveVersion >= 5 && !string.IsNullOrEmpty(data.teamName) ? data.teamName : "";
+
         // Keep generated enemies/free agents from colliding with saved nicknames
         PlayerGenerator.RegisterExistingNicknames(roster);
         PlayerGenerator.RegisterExistingNicknames(scoutingPool);
@@ -140,6 +157,7 @@ public class CareerManager : MonoBehaviour
         SaveSystem.Save(new CareerSaveData
         {
             saveVersion = Constants.SAVE_VERSION,
+            teamName = teamName,
             budget = budget,
             protocols = protocols,
             currentWeek = currentWeek,

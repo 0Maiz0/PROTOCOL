@@ -73,10 +73,18 @@ public class HomeHub : MonoBehaviour
         GUI.Box(new Rect(x - 15, y - 10, w + 30, 660), "");
 
         // ---------- Header (always visible) ----------
-        GUI.Label(new Rect(x, y, w, 34), "PROTOCOL — MANAGEMENT", h1);
+        string header = string.IsNullOrEmpty(cm.teamName) ? "PROTOCOL — MANAGEMENT" : $"PROTOCOL — {cm.teamName.ToUpper()}";
+        GUI.Label(new Rect(x, y, w, 34), header, h1);
         if (GUI.Button(new Rect(x + w - 110, y + 2, 100, 30), "MENU", smallBtn))
             UnityEngine.SceneManagement.SceneManager.LoadScene(Constants.MENU_SCENE_NAME);
         y += 40;
+
+        // ---------- Org naming gate (new career / pre-v5 save) ----------
+        if (string.IsNullOrEmpty(cm.teamName))
+        {
+            DrawTeamNaming(cm, x, y + 20, w);
+            return;
+        }
         GUI.Label(new Rect(x, y, w, 24), $"Week {cm.currentWeek}   |   Budget: ${cm.budget:N0}", h2); y += 26;
 
         if (cm.hasLastResult)
@@ -108,6 +116,28 @@ public class HomeHub : MonoBehaviour
             case 3: DrawShop(cm, x, y, w); break;
             case 4: DrawBudget(cm, x, y, w); break;
         }
+    }
+
+    // ===================== ORG NAMING =====================
+
+    private string teamNameInput = "";
+
+    /// <summary>One-time founding screen — the tag shown in brackets, intros, history.</summary>
+    private void DrawTeamNaming(CareerManager cm, float x, float y, float w)
+    {
+        GUI.Label(new Rect(x, y, w, 28), "FOUND YOUR ORG", h2); y += 34;
+        GUI.Label(new Rect(x, y, w, 22), "Pick the tag the scene will know you by — brackets, broadcasts, match history.", text); y += 40;
+
+        var field = new GUIStyle(GUI.skin.textField) { fontSize = 20, fontStyle = FontStyle.Bold };
+        teamNameInput = GUI.TextField(new Rect(x, y, 340, 40), teamNameInput, 18, field);
+
+        string trimmed = teamNameInput.Trim();
+        GUI.enabled = trimmed.Length >= 2;
+        if (GUI.Button(new Rect(x + 360, y, 200, 40), "FOUND TEAM", btn))
+            cm.SetTeamName(trimmed);
+        GUI.enabled = true;
+        y += 52;
+        GUI.Label(new Rect(x, y, w, 22), "2–18 characters. You can't rename later — orgs live with their tag.", dim);
     }
 
     // ===================== CALENDAR =====================
@@ -170,7 +200,7 @@ public class HomeHub : MonoBehaviour
     {
         GUI.Label(new Rect(x, y, w, 24), $"QUALIFIER BRACKET — week {br.week}", h2); y += 30;
 
-        string you = Constants.PLAYER_TEAM_NAME;
+        string you = CareerManager.TeamDisplayName;
 
         DrawBracketMatch(x, y, "SEMIFINAL 1", you, br.sfOpponent.teamName,
             br.sf1Played, br.sf1YourScore, br.sf1OppScore, br.sf1Won);

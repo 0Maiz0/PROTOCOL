@@ -96,7 +96,7 @@ public class RoundManager : MonoBehaviour
 		// Broadcast-style intro splash
 		var intro = FindObjectOfType<MatchIntro>();
 		if (intro == null) intro = gameObject.AddComponent<MatchIntro>();
-		intro.Show("NAVI",
+		intro.Show(CareerManager.Instance != null ? CareerManager.TeamDisplayName : "NAVI",
 			CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "FAZE");
 
 		MatchLogger.StartMatch(CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "standalone");

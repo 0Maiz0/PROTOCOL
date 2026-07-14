@@ -456,21 +456,22 @@ public class ObserverCamera : MonoBehaviour
 
 	// ===================== HUD =====================
 
+	/// <summary>The bot the camera follows — PlayerHUD highlights its card.</summary>
+	public Transform FollowTarget => currentTarget;
+
 	private void OnGUI()
 	{
+		// Compact bottom-center strip — the old bottom-left box + player list
+		// sat on top of the PlayerHUD team panels (they show the players now)
 		GUIStyle s = new GUIStyle(GUI.skin.label);
 		s.fontSize = 12;
 		s.normal.textColor = new Color(1f, 1f, 1f, 0.7f);
 
-		// Controls hint
-		float y = Screen.height - 120;
-		GUI.Box(new Rect(5, y - 5, 280, 120), "");
-		GUI.Label(new Rect(10, y, 270, 18), "1-5: T players | 6-0: CT players", s);
-		GUI.Label(new Rect(10, y + 18, 270, 18), "TAB: Next alive | SPACE: Auto-director", s);
-		GUI.Label(new Rect(10, y + 36, 270, 18), "F: Free cam (WASD+Mouse) | Scroll: Zoom", s);
-		GUI.Label(new Rect(10, y + 54, 270, 18), "V: POV/3rd person | Right Click: Orbit", s);
+		float bx = Screen.width / 2f - 175, by = Screen.height - 62;
+		GUI.Box(new Rect(bx - 5, by - 5, 360, 62), "");
+		GUI.Label(new Rect(bx, by, 350, 18), "1-5: T | 6-0: CT | TAB: next | SPACE: auto-director", s);
+		GUI.Label(new Rect(bx, by + 18, 350, 18), "F: free cam | V: POV | Right Click: orbit | Scroll: zoom", s);
 
-		// Current state
 		string targetName = "";
 		if (currentTarget != null)
 		{
@@ -481,64 +482,10 @@ public class ObserverCamera : MonoBehaviour
 
 		s.fontStyle = FontStyle.Bold;
 		s.normal.textColor = Color.yellow;
-		GUI.Label(new Rect(10, y + 78, 270, 18), $"{currentMode} | {targetName}", s);
-
+		GUI.Label(new Rect(bx, by + 36, 250, 18), $"{currentMode} | {targetName}", s);
 		s.normal.textColor = autoDirector ? Color.green : Color.red;
-		GUI.Label(new Rect(10, y + 96, 270, 18), $"Auto-Director: {(autoDirector ? "ON" : "OFF")}", s);
-
-		// Player list on left side
-		DrawPlayerList();
-	}
-
-	private void DrawPlayerList()
-	{
-		GUIStyle alive = new GUIStyle(GUI.skin.label);
-		alive.fontSize = 13;
-
-		GUIStyle dead = new GUIStyle(alive);
-		dead.normal.textColor = new Color(0.5f, 0.5f, 0.5f, 0.6f);
-
-		float x = 10, y = 130;
-
-		// T side
-		alive.normal.textColor = new Color(1f, 0.4f, 0.4f);
-		GUI.Label(new Rect(x, y, 200, 18), "— T SIDE —", alive);
-		y += 18;
-
-		for (int i = 0; i < attackerBots.Count; i++)
-		{
-			var bot = attackerBots[i];
-			bool isAlive = bot.Profile != null && bot.Profile.IsAlive;
-			bool isFollowed = currentTarget == bot.transform;
-
-			GUIStyle st = isAlive ? alive : dead;
-			string prefix = isFollowed ? ">> " : $"  {i + 1}. ";
-			string kills = isAlive ? $" [{bot.Profile.RoundKills}K]" : " [DEAD]";
-
-			GUI.Label(new Rect(x, y, 200, 18), $"{prefix}{bot.Profile?.Data?.nickname ?? "?"}{kills}", st);
-			y += 16;
-		}
-
-		y += 8;
-
-		// CT side
-		alive.normal.textColor = new Color(0.4f, 0.6f, 1f);
-		GUI.Label(new Rect(x, y, 200, 18), "— CT SIDE —", alive);
-		y += 18;
-
-		for (int i = 0; i < defenderBots.Count; i++)
-		{
-			var bot = defenderBots[i];
-			bool isAlive = bot.Profile != null && bot.Profile.IsAlive;
-			bool isFollowed = currentTarget == bot.transform;
-
-			GUIStyle st = isAlive ? alive : dead;
-			int keyNum = i < 4 ? i + 6 : 0;
-			string prefix = isFollowed ? ">> " : $"  {keyNum}. ";
-			string kills = isAlive ? $" [{bot.Profile.RoundKills}K]" : " [DEAD]";
-
-			GUI.Label(new Rect(x, y, 200, 18), $"{prefix}{bot.Profile?.Data?.nickname ?? "?"}{kills}", st);
-			y += 16;
-		}
+		var right = new GUIStyle(s) { alignment = TextAnchor.MiddleRight };
+		right.normal.textColor = s.normal.textColor;
+		GUI.Label(new Rect(bx + 250, by + 36, 100, 18), autoDirector ? "AUTO ON" : "AUTO OFF", right);
 	}
 }

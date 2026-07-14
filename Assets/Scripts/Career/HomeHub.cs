@@ -526,7 +526,7 @@ public class HomeHub : MonoBehaviour
         GUI.Label(new Rect(x, y, w, 22),
             $"Total team bonuses:  AIM +{eq.GetAimBonus()}   REF +{eq.GetReflexBonus()}   COM +{eq.GetCommunicationBonus()}   CON +{eq.GetConsistencyBonus()}", h2);
         y += 34;
-        GUI.Label(new Rect(x, y, w, 22), "Purchases arrive in Phase D. Bonuses already apply to your bots in matches.", dim);
+        
     }
 
     // ===================== BUDGET =====================

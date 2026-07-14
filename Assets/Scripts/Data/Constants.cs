@@ -126,6 +126,11 @@ public static class Constants
     // "5 AKs round 2" must mean an empty util pouch (playtest #17)
     public const int UTIL_BANK_PER_NADE = 1500;   // leftover team bank per grenade
 
+    // Playtest #18: guns beat grenades at contact + evade sanity
+    public const float UTIL_ABORT_ENEMY_RANGE = 12f; // known enemy this close → shoot, don't nade
+    public const float CLOSE_RANGE_NO_COVER = 9f;    // point-blank: no cover cycling, stand and fight
+    public const float EVADE_COOLDOWN = 1.5f;        // one dodge, then turn and face the shooter
+
     // Utility timing (playtest #2)
     public const float UTIL_THROW_RANGE = 40f;    // rush smoke must LAND before contact (log: smoke 20.0s, first duel 21.5s)
     public const float UTIL_JIT_TIMEOUT = 20f;    // give up waiting and throw anyway

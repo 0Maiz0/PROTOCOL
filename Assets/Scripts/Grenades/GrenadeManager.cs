@@ -122,7 +122,7 @@ public class GrenadeManager : MonoBehaviour
 
     private IEnumerator ClutchFlashPeek(BotController clutcher, Vector3 enemyPos)
     {
-        yield return StartCoroutine(ThrowGrenade(clutcher, GrenadeType.Flash, enemyPos));
+        yield return StartCoroutine(ThrowGrenade(clutcher, GrenadeType.Flash, enemyPos, allowUnderFire: true));
         // Flash popped — swing onto the blinded angle
         if (clutcher != null && clutcher.Profile != null && clutcher.Profile.IsAlive &&
             clutcher.TryGetComponent(out EngagementSystem eyes))
@@ -148,7 +148,7 @@ public class GrenadeManager : MonoBehaviour
 
             used = true;
             CommsFeed.Post(b.Profile.Data.nickname, "smoking myself off!", side);
-            StartCoroutine(ThrowGrenade(b, GrenadeType.Smoke, b.transform.position - b.transform.forward * 1f));
+            StartCoroutine(ThrowGrenade(b, GrenadeType.Smoke, b.transform.position - b.transform.forward * 1f, allowUnderFire: true));
             return;
         }
     }
@@ -427,9 +427,16 @@ public class GrenadeManager : MonoBehaviour
     /// Throw a grenade from a bot's position to target with visible arc.
     /// Bot briefly pauses to "throw", then grenade arcs through air and lands.
     /// </summary>
-    private IEnumerator ThrowGrenade(BotController thrower, GrenadeType type, Vector3 target)
+    private IEnumerator ThrowGrenade(BotController thrower, GrenadeType type, Vector3 target, bool allowUnderFire = false)
     {
         if (thrower == null || !thrower.Profile.IsAlive || target == Vector3.zero)
+            yield break;
+        // Guns beat grenades at contact: a KNOWN enemy breathing on the thrower
+        // means shoot first (playtest #18: the last CT flash-smoke-mollied a
+        // pistol T at 2m for 14 seconds instead of killing him). Panic smoke
+        // and the clutch flash are contact plays BY DESIGN — they pass the flag.
+        if (!allowUnderFire && CommsManager.Instance != null &&
+            CommsManager.Instance.AnyKnownEnemyNear(thrower.Side, thrower.transform.position, Constants.UTIL_ABORT_ENEMY_RANGE))
             yield break;
         if (!SafeForTeammates(type, target, thrower)) yield break; // never nade your own guys
         if (Vector3.Distance(thrower.transform.position, target) > Constants.UTIL_MAX_THROW_RANGE)

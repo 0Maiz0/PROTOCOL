@@ -25,6 +25,8 @@ public class PlayerHUD : MonoBehaviour
     private List<BotController> attackerBots = new List<BotController>();
     private List<BotController> defenderBots = new List<BotController>();
     private float refreshTimer;
+    private ObserverCamera observerCam;   // followed-player highlight
+    private GrenadeManager grenadeManager; // team util readout above the panels
 
     private void Update()
     {
@@ -33,6 +35,8 @@ public class PlayerHUD : MonoBehaviour
         {
             refreshTimer = 0.5f;
             RefreshBotLists();
+            if (observerCam == null) observerCam = FindObjectOfType<ObserverCamera>();
+            if (grenadeManager == null) grenadeManager = FindObjectOfType<GrenadeManager>();
         }
     }
 
@@ -62,9 +66,12 @@ public class PlayerHUD : MonoBehaviour
     {
         if (bots.Count == 0) return;
 
+        // Wider than the serialized default — K/D needs the room (scene keeps
+        // the old 160 in panelWidth; floor it in code, stale-scene-value bug)
+        float pw = Mathf.Max(panelWidth, 200f);
         float totalHeight = bots.Count * (panelHeight + panelSpacing);
         float startY = Screen.height - totalHeight - bottomMargin;
-        float startX = leftSide ? 8f : (Screen.width - panelWidth - 8f);
+        float startX = leftSide ? 8f : (Screen.width - pw - 8f);
 
         // Team header
         GUIStyle header = new GUIStyle(GUI.skin.label);
@@ -77,7 +84,20 @@ public class PlayerHUD : MonoBehaviour
 
         string label = side == TeamSide.Attacker ? "T SIDE" : "CT SIDE";
         if (side == playerTeamSide) label += " (YOU)";
-        GUI.Label(new Rect(startX, startY - 18, panelWidth, 16), label, header);
+        GUI.Label(new Rect(startX, startY - 18, pw, 16), label, header);
+
+        // Team utility level sits right above its own panel stack
+        if (grenadeManager != null)
+        {
+            int nades = grenadeManager.GetNadeCount(side);
+            string utilLabel = nades <= 0 ? "NONE" : nades == 1 ? "LOW" : nades <= 3 ? "OK" : "FULL";
+            GUIStyle util = new GUIStyle(header);
+            util.normal.textColor = nades <= 0 ? new Color(1f, 0.35f, 0.3f)
+                : nades == 1 ? new Color(1f, 0.65f, 0.25f)
+                : nades <= 3 ? new Color(1f, 0.9f, 0.4f)
+                : new Color(0.5f, 1f, 0.5f);
+            GUI.Label(new Rect(startX, startY - 36, pw, 16), $"UTIL: {utilLabel} ({nades})", util);
+        }
 
         for (int i = 0; i < bots.Count; i++)
         {
@@ -85,7 +105,7 @@ public class PlayerHUD : MonoBehaviour
             if (bot.Profile == null) continue;
 
             float y = startY + i * (panelHeight + panelSpacing);
-            Rect panelRect = new Rect(startX, y, panelWidth, panelHeight);
+            Rect panelRect = new Rect(startX, y, pw, panelHeight);
 
             DrawPlayerPanel(panelRect, bot, side);
         }
@@ -109,11 +129,19 @@ public class PlayerHUD : MonoBehaviour
             : new Color(0.08f, 0.08f, 0.08f, 0.6f);
         GUI.DrawTexture(rect, Tex(bg));
 
-        // Left color bar (team color)
-        Color teamColor = side == TeamSide.Attacker
-            ? new Color(1f, 0.35f, 0.3f, alive ? 0.9f : 0.3f)
-            : new Color(0.3f, 0.5f, 1f, alive ? 0.9f : 0.3f);
+        // Left color bar (team color); the camera's followed player gets gold
+        bool followed = observerCam != null && observerCam.FollowTarget == bot.transform;
+        Color teamColor = followed
+            ? new Color(1f, 0.85f, 0.25f, 0.95f)
+            : side == TeamSide.Attacker
+                ? new Color(1f, 0.35f, 0.3f, alive ? 0.9f : 0.3f)
+                : new Color(0.3f, 0.5f, 1f, alive ? 0.9f : 0.3f);
         GUI.DrawTexture(new Rect(rect.x, rect.y, 3, rect.height), Tex(teamColor));
+        if (followed)
+        {
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, 2), Tex(teamColor));
+            GUI.DrawTexture(new Rect(rect.x, rect.yMax - 2, rect.width, 2), Tex(teamColor));
+        }
 
         float textAlpha = alive ? 1f : 0.4f;
 
@@ -160,6 +188,14 @@ public class PlayerHUD : MonoBehaviour
             hpNum.normal.textColor = new Color(1, 1, 1, 0.8f);
             GUI.Label(new Rect(barX, barY + 7, 30, 14), $"{(int)hp}", hpNum);
 
+            // K/D (match) between the bar and the ammo
+            GUIStyle kd = new GUIStyle(GUI.skin.label);
+            kd.fontSize = 10;
+            kd.alignment = TextAnchor.MiddleRight;
+            kd.normal.textColor = new Color(0.75f, 0.75f, 0.75f, 0.9f);
+            GUI.Label(new Rect(rect.x + rect.width - 106, barY + 5, 50, 14),
+                $"{bot.Profile.MatchKills}/{bot.Profile.MatchDeaths}", kd);
+
             // Ammo
             GUIStyle ammoStyle = new GUIStyle(GUI.skin.label);
             ammoStyle.fontSize = 11;
@@ -174,12 +210,13 @@ public class PlayerHUD : MonoBehaviour
         }
         else
         {
-            // Dead label
+            // Dead label + final K/D
             GUIStyle deadStyle = new GUIStyle(GUI.skin.label);
             deadStyle.fontSize = 11;
             deadStyle.normal.textColor = new Color(0.5f, 0.2f, 0.2f, 0.6f);
             deadStyle.alignment = TextAnchor.MiddleRight;
-            GUI.Label(new Rect(rect.x + 8, barY - 2, rect.width - 16, 18), "DEAD", deadStyle);
+            GUI.Label(new Rect(rect.x + 8, barY - 2, rect.width - 16, 18),
+                $"{bot.Profile.MatchKills}/{bot.Profile.MatchDeaths}  DEAD", deadStyle);
         }
     }
 

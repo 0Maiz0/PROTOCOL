@@ -33,12 +33,10 @@ public class MatchHUD : MonoBehaviour
 
     private List<KillEntry> killfeed = new List<KillEntry>();
     private Camera mainCam;
-    private GrenadeManager grenadeManager;
 
     private void Start()
     {
         mainCam = Camera.main;
-        grenadeManager = FindObjectOfType<GrenadeManager>();
         // Subscribe to new event signature with sides
         EngagementSystem.OnKillFeedEvent += OnKill;
     }
@@ -67,30 +65,6 @@ public class MatchHUD : MonoBehaviour
         if (mainCam == null) return;
         DrawNicknames();
         DrawKillfeed();
-        DrawUtility();
-    }
-
-    // ===================== TEAM UTILITY READOUT =====================
-
-    /// <summary>Live shared-inventory level per team, under the score box.</summary>
-    private void DrawUtility()
-    {
-        if (grenadeManager == null) return;
-
-        GUIStyle s = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold };
-        DrawUtilLine(15, 122, "T  UTIL", grenadeManager.GetNadeCount(TeamSide.Attacker), s);
-        DrawUtilLine(15, 140, "CT UTIL", grenadeManager.GetNadeCount(TeamSide.Defender), s);
-    }
-
-    private void DrawUtilLine(float x, float y, string team, int nades, GUIStyle s)
-    {
-        string label = nades <= 0 ? "NONE" : nades == 1 ? "LOW" : nades <= 3 ? "OK" : "FULL";
-        Color c = nades <= 0 ? new Color(1f, 0.35f, 0.3f)
-                : nades == 1 ? new Color(1f, 0.65f, 0.25f)
-                : nades <= 3 ? new Color(1f, 0.9f, 0.4f)
-                : new Color(0.5f, 1f, 0.5f);
-        s.normal.textColor = c;
-        GUI.Label(new Rect(x, y, 220, 18), $"{team}: {label} ({nades})", s);
     }
 
     // ===================== NICKNAMES (with LOS check) =====================

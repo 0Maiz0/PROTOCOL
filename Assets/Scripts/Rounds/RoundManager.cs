@@ -518,29 +518,53 @@ public class RoundManager : MonoBehaviour
 	private void OnGUI()
 	{
 		if (State == null) return;
-		GUIStyle s = new GUIStyle(GUI.skin.label);
-		s.fontSize = 22; s.fontStyle = FontStyle.Bold; s.normal.textColor = Color.white;
-		GUI.Box(new Rect(5, 5, 520, 115), "");
-		// Player-perspective score — "T 2-13 CT" after halftime reads like a loss when you're the 13
-		GUI.Label(new Rect(15, 10, 500, 30),
-			$"Round {State.currentRound}  |  YOU {State.PlayerScore} — {State.EnemyScore} THEM  (you are {(State.playerTeamSide == TeamSide.Attacker ? "T" : "CT")})", s);
-		s.fontSize = 16; s.fontStyle = FontStyle.Normal;
-		GUI.Label(new Rect(15, 40, 500, 25), $"{currentPhase}  |  Timer: {roundTimer:F0}s  |  {attackersAlive}v{defendersAlive}", s);
-		s.fontSize = 14;
-		if (economy != null)
-			GUI.Label(new Rect(15, 65, 500, 25),
-				$"T: ${economy.attackerEconomy.credits} ({economy.attackerEconomy.currentBuyType}) | CT: ${economy.defenderEconomy.credits} ({economy.defenderEconomy.currentBuyType})", s);
-		if (bombManager != null)
+
+		// ===== Broadcast top bar: [T name | score]  round/timer  [score | CT name] =====
+		float cx = Screen.width / 2f;
+		GUI.Box(new Rect(cx - 330, 5, 660, 70), "");
+
+		bool playerIsT = State.playerTeamSide == TeamSide.Attacker;
+		string playerName = CareerManager.Instance != null ? CareerManager.TeamDisplayName : "NAVI";
+		string enemyName = CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "FAZE";
+		string tName = (playerIsT ? playerName : enemyName) + (playerIsT ? "  (YOU)" : "");
+		string ctName = (playerIsT ? "(YOU)  " : "") + (playerIsT ? enemyName : playerName);
+
+		var tStyle = new GUIStyle(GUI.skin.label) { fontSize = 17, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
+		tStyle.normal.textColor = new Color(1f, 0.45f, 0.38f);
+		var ctStyle = new GUIStyle(tStyle) { alignment = TextAnchor.MiddleRight };
+		ctStyle.normal.textColor = new Color(0.42f, 0.62f, 1f);
+		var scoreStyle = new GUIStyle(GUI.skin.label) { fontSize = 28, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+		scoreStyle.normal.textColor = Color.white;
+		var midSmall = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.MiddleCenter };
+		midSmall.normal.textColor = new Color(0.8f, 0.8f, 0.8f);
+		var midTimer = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+		midTimer.normal.textColor = Color.white;
+
+		GUI.Label(new Rect(cx - 320, 10, 205, 32), tName, tStyle);
+		GUI.Label(new Rect(cx - 112, 6, 56, 38), State.attackerScore.ToString(), scoreStyle);
+		GUI.Label(new Rect(cx - 55, 6, 110, 16), $"ROUND {State.currentRound}", midSmall);
+		GUI.Label(new Rect(cx - 55, 22, 110, 24), $"{(int)roundTimer / 60}:{(int)roundTimer % 60:00}", midTimer);
+		GUI.Label(new Rect(cx + 56, 6, 56, 38), State.defenderScore.ToString(), scoreStyle);
+		GUI.Label(new Rect(cx + 115, 10, 205, 32), ctName, ctStyle);
+
+		// Status line: alive, buys, bomb state
+		string bombText = "";
+		var statusStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+		statusStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+		if (bombManager != null && bombManager.CurrentState != BombState.NotPlanted)
 		{
-			s.normal.textColor = bombManager.IsPlanted || bombManager.IsExploded ? Color.red : (bombManager.IsDefused ? Color.green : Color.gray);
-			s.fontStyle = FontStyle.Bold;
-			string bt = bombManager.CurrentState switch
+			bombText = bombManager.CurrentState switch
 			{
-				BombState.Planted => $"BOMB PLANTED {bombManager.PlantedSiteName}! ({bombManager.Timer:F0}s)",
-				BombState.Exploded => "BOMB EXPLODED!", BombState.Defused => "BOMB DEFUSED!", _ => "Bomb: Not planted"
+				BombState.Planted => $"   |   BOMB PLANTED {bombManager.PlantedSiteName} ({bombManager.Timer:F0}s)",
+				BombState.Exploded => "   |   BOMB EXPLODED",
+				_ => "   |   BOMB DEFUSED"
 			};
-			GUI.Label(new Rect(15, 90, 500, 25), bt, s);
+			statusStyle.normal.textColor = bombManager.IsDefused ? Color.green : new Color(1f, 0.4f, 0.3f);
 		}
+		string econText = economy != null
+			? $"   |   T {economy.attackerEconomy.currentBuyType} ${economy.attackerEconomy.credits} — CT {economy.defenderEconomy.currentBuyType} ${economy.defenderEconomy.credits}"
+			: "";
+		GUI.Label(new Rect(cx - 325, 46, 650, 22), $"{attackersAlive} v {defendersAlive}{econText}{bombText}", statusStyle);
 		// Tactical timeout — the coach's only in-match lever
 		if (!State.isMatchOver)
 		{

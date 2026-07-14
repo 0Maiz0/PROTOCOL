@@ -242,7 +242,7 @@ public class EngagementSystem : MonoBehaviour
         RotateToward(target.transform);
 
         // Cover: only T-side rifle in open
-        if (ShouldSeekCover() && coverBehavior != null)
+        if (ShouldSeekCover(toEnemy.magnitude) && coverBehavior != null)
             coverBehavior.StartCombatCover(target.transform);
     }
 
@@ -297,11 +297,26 @@ public class EngagementSystem : MonoBehaviour
     /// Getting hit with no line on the shooter (smoke, off-angle) —
     /// break the line with a diagonal dodge instead of standing in the open.
     /// </summary>
+    private float lastEvadeTime;
+
     private void EvadeFrom(Vector3 threat)
     {
         var agent = myBot.Agent;
         if (agent == null || !agent.isOnNavMesh) return;
         if (myStateMachine.CurrentState == BotState.Shooting) return;
+
+        // Chained hits kept re-triggering the dodge — the "runs around the box
+        // instead of fighting" dance. One evade, then turn and face the threat.
+        if (Time.time - lastEvadeTime < Constants.EVADE_COOLDOWN)
+        {
+            Vector3 face = threat - transform.position;
+            face.y = 0f;
+            if (face.sqrMagnitude > 0.01f)
+                transform.rotation = Quaternion.LookRotation(face);
+            losCheckTimer = 0f; // scan now — answer the moment he's visible
+            return;
+        }
+        lastEvadeTime = Time.time;
 
         Vector3 away = transform.position - threat;
         away.y = 0f;
@@ -333,8 +348,13 @@ public class EngagementSystem : MonoBehaviour
         losCheckTimer = 0f; // scan this frame
     }
 
-    private bool ShouldSeekCover()
+    private bool ShouldSeekCover(float distance)
     {
+        // Point-blank: stand and spray — circling a box at 3m is how you die
+        // (playtest #18: retaking CT danced around a crate vs a pistol)
+        if (distance < Constants.CLOSE_RANGE_NO_COVER) return false;
+        // Committed retake/defuse push trades damage — it doesn't hide
+        if (myBot.Side == TeamSide.Defender && myBot.HazardBypass) return false;
         if (myBot.Side == TeamSide.Defender &&
             (myStateMachine.CurrentState == BotState.Peeking || myStateMachine.CurrentState == BotState.Idle))
             return false;

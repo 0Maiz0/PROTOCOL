@@ -47,11 +47,19 @@ public class GrenadeManager : MonoBehaviour
 
     public void SetBotReferences(List<BotController> a, List<BotController> d) { attackerBots = a; defenderBots = d; }
 
-    public void AllocateUtility(BuyType aB, BuyType dB)
+    /// <summary>
+    /// Utility comes from the LEFTOVER bank after guns, not the buy tier alone —
+    /// a round-2 "full" off a pistol win means rifles with an empty util pouch.
+    /// </summary>
+    public void AllocateUtility(BuyType aB, BuyType dB, int aBankLeft, int dBankLeft)
     {
         attackerBuyType = aB; defenderBuyType = dB;
-        attackerNades = GetBudget(aB); defenderNades = GetBudget(dB);
+        attackerNades = Mathf.Min(GetBudget(aB), aBankLeft / Constants.UTIL_BANK_PER_NADE);
+        defenderNades = Mathf.Min(GetBudget(dB), dBankLeft / Constants.UTIL_BANK_PER_NADE);
     }
+
+    /// <summary>Live shared-inventory count — the HUD's LOW/OK/FULL readout.</summary>
+    public int GetNadeCount(TeamSide side) => side == TeamSide.Attacker ? attackerNades : defenderNades;
 
     public void ResetForRound()
     {
@@ -132,7 +140,11 @@ public class GrenadeManager : MonoBehaviour
         {
             if (b?.Profile == null || !b.Profile.IsAlive || b.IsFrozen) continue;
             if (b.Profile.HP > Constants.PANIC_SMOKE_HP) continue;
-            if (CommsManager.Instance.CountKnownEnemiesNear(side, b.transform.position, 20f) < 2) continue;
+            if (CommsManager.Instance.CountKnownEnemiesNear(side, b.transform.position,
+                Constants.PANIC_SMOKE_ENEMY_RANGE) < 2) continue;
+            // A teammate close enough to trade = fight it out, don't burn the smoke
+            // (playtest #17: 10 panic smokes in 6 rounds — desperation play, not a habit)
+            if (EngagementSystem.HasFriendlySupportNear(b, Constants.PANIC_SMOKE_SUPPORT_RANGE)) continue;
 
             used = true;
             CommsFeed.Post(b.Profile.Data.nickname, "smoking myself off!", side);

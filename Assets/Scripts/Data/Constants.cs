@@ -56,9 +56,14 @@ public static class Constants
 
     // Bot AI (engine fix pass)
     public const float CLUTCH_HITCHANCE_SCALE = 0.3f; // hit-chance multiplier scale in 1vX
-    public const float SCAN_SWEEP_SPEED = 35f;        // sweep rotation speed, deg/sec
     public const float AI_COMMIT_DELAY_MIN = 10f;     // AI coach commit window after strategies run
     public const float AI_COMMIT_DELAY_MAX = 18f;
+
+    // Hold-angle scanning (playtest #17): look at a spot, HOLD it, flick to the
+    // next — the old continuous ping-pong read as bots spinning in place
+    public const float SWEEP_TURN_SPEED = 120f;  // deliberate re-aim flick, deg/sec
+    public const float SWEEP_DWELL_MIN = 1.6f;   // seconds an angle is held
+    public const float SWEEP_DWELL_MAX = 3.4f;
 
     // Bot AI (playtest #1 pass)
     public const float BURST_SPRAY_LIMIT = 0.45f;   // stop spraying above this, re-aim
@@ -109,8 +114,17 @@ public static class Constants
     public const float MOLOTOV_DPS = 55f; // real fire — crossing costs ~60HP (scene had stale 30)
     public const float TARGET_MOVE_PENALTY = 0.85f;     // runners are harder to hit
     public const float TARGET_MOVE_PENALTY_AWP = 0.6f;  // and nearly unsnipable (no more 45m runner picks)
-    public const float PANIC_SMOKE_HP = 50f;        // below this + outnumbered → self-smoke
     public const float SITE_EXECUTE_RADIUS = 14f;   // bots inside this of a site = already executing
+
+    // Panic self-smoke (playtest #17: 10 in 6 rounds — a desperation play, not a habit).
+    // Fires only when badly hurt, locally swarmed AND alone — once per team per round.
+    public const float PANIC_SMOKE_HP = 32f;
+    public const float PANIC_SMOKE_ENEMY_RANGE = 14f;   // 2+ known enemies this close
+    public const float PANIC_SMOKE_SUPPORT_RANGE = 12f; // a teammate this close = no panic
+
+    // Utility is bought with leftover money, not granted by buy tier alone —
+    // "5 AKs round 2" must mean an empty util pouch (playtest #17)
+    public const int UTIL_BANK_PER_NADE = 1500;   // leftover team bank per grenade
 
     // Utility timing (playtest #2)
     public const float UTIL_THROW_RANGE = 40f;    // rush smoke must LAND before contact (log: smoke 20.0s, first duel 21.5s)

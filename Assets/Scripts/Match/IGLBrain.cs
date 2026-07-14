@@ -30,6 +30,7 @@ public class IGLBrain : MonoBehaviour
     private float roundStartTime;
     private float lastPlantPushTime;
     private bool saveCalled;
+    private float lastSaveReissue;
 
     // Adaptation memory: zones that keep losing us rounds get called off
     private readonly Dictionary<StrategyZone, int> zoneFails = new Dictionary<StrategyZone, int>();
@@ -54,6 +55,7 @@ public class IGLBrain : MonoBehaviour
         roundStartTime = Time.time;
         lastPlantPushTime = -100f;
         saveCalled = false;
+        lastSaveReissue = -100f;
         if (commitCo != null) { StopCoroutine(commitCo); commitCo = null; }
         if (bots == null) return;
         foreach (var b in bots)
@@ -270,6 +272,20 @@ public class IGLBrain : MonoBehaviour
             return;
         }
 
+        // A called save is FINAL — the clock-burning push below was overriding
+        // it 14s later and marching the savers back into the site to die
+        // (playtest #17 R05: save at 37s, "hit A NOW!" at 51/71/91s)
+        if (saveCalled)
+        {
+            // Re-issue occasionally: bots that were mid-fight ignored the first exit order
+            if (Time.time - lastSaveReissue > 6f)
+            {
+                lastSaveReissue = Time.time;
+                SendTeamTo("WP_TopAxis", bypassHazards: false);
+            }
+            return;
+        }
+
         // Man advantage or burning clock and STILL no plant — take a site NOW
         bool manAdvantage = mine - theirs >= 2 && elapsed > 20f;
         bool clockBurning = elapsed > 50f;
@@ -284,7 +300,7 @@ public class IGLBrain : MonoBehaviour
                 : Flavor($"clock's burning — hit {site} NOW!",
                          $"time! {site}, go go go",
                          $"clock check — {site}, execute now"));
-            SendTeamTo(wp, bypassHazards: true);
+            SendTeamToSite(wp, site);
         }
     }
 
@@ -326,6 +342,33 @@ public class IGLBrain : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Plant push with a real setup: the carrier walks the site, everyone else
+    /// takes the post-plant spots around it. One shared waypoint left 5 Ts
+    /// piled on the carrier "standing on the bomb" (playtest #17 R04).
+    /// </summary>
+    private void SendTeamToSite(string wpName, string site)
+    {
+        GameObject wp = GameObject.Find(wpName);
+        if (wp == null) return;
+        var carrier = bombManager != null ? bombManager.Carrier : null;
+
+        int spread = 1;
+        foreach (var b in myBots)
+        {
+            if (b?.Profile == null || !b.Profile.IsAlive) continue;
+            Transform target = wp.transform;
+            if (b != carrier)
+            {
+                GameObject spot = GameObject.Find($"WP_PP_{site}_{spread}");
+                if (spot != null) { target = spot.transform; spread = spread % 4 + 1; }
+            }
+            b.HazardBypass = true;
+            b.AssignWaypoints(new Transform[] { target });
+            b.StartExecuting();
+        }
+    }
+
     private int CountAlive(List<BotController> bots)
     {
         if (bots == null) return 0;
@@ -359,6 +402,9 @@ public class IGLBrain : MonoBehaviour
                 return;
             }
         }
+
+        // Saving CTs stay saved — rotations were sending them back to the sites
+        if (saveCalled) return;
 
         if (rotateCooldown > 0f || CommsManager.Instance == null) return;
         GameObject aWP = GameObject.Find("WP_NodeA"), bWP = GameObject.Find("WP_NodeB");

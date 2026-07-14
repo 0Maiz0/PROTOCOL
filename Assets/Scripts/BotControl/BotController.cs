@@ -30,8 +30,9 @@ public class BotController : MonoBehaviour
     private bool hasScanPoint;
     private Vector3 scanPoint;
     private float scanBaseYaw;
-    private float sweepPhaseOffset;
     private float sweepArc; // GameSense-scaled: pros keep the crosshair ON the angle
+    private float sweepTargetYaw;     // the angle currently being held
+    private float sweepNextPickTime;  // when to flick to the next angle
 
     // Hazard-ahead: don't walk into mollies or push enemy smokes
     private float hazardCheckTimer;
@@ -43,9 +44,9 @@ public class BotController : MonoBehaviour
         if (agent == null) agent = GetComponent<NavMeshAgent>();
         if (stateMachine == null) stateMachine = GetComponent<BotStateMachine>();
         stateMachine.OnStateChanged += OnStateChanged;
-        sweepPhaseOffset = Random.Range(0f, 100f); // desync sweep across bots
         sweepArc = Mathf.Lerp(Constants.SWEEP_ARC_LOW_GS, Constants.SWEEP_ARC_HIGH_GS,
             profile.Data.gameSense / 100f);
+        sweepNextPickTime = Time.time + Random.Range(0f, Constants.SWEEP_DWELL_MAX); // desync flicks across bots
     }
 
     private void OnDestroy() { if (stateMachine != null) stateMachine.OnStateChanged -= OnStateChanged; }
@@ -133,13 +134,17 @@ public class BotController : MonoBehaviour
             }
             else
             {
-                // No intel — sweep the held angle (narrow for high GameSense: crosshair
-                // placement discipline; wide wandering aim for low GS)
-                float sweep = Mathf.PingPong((Time.time + sweepPhaseOffset) * Constants.SCAN_SWEEP_SPEED,
-                    sweepArc) - sweepArc * 0.5f;
-                Quaternion target = Quaternion.Euler(0f, scanBaseYaw + sweep, 0f);
+                // No intel — check angles like a human: flick to a spot inside the
+                // arc (narrow for high GameSense), HOLD it, then pick the next one.
+                // The old continuous ping-pong read as bots spinning in place.
+                if (Time.time >= sweepNextPickTime)
+                {
+                    sweepNextPickTime = Time.time + Random.Range(Constants.SWEEP_DWELL_MIN, Constants.SWEEP_DWELL_MAX);
+                    sweepTargetYaw = scanBaseYaw + Random.Range(-0.5f, 0.5f) * sweepArc;
+                }
+                Quaternion target = Quaternion.Euler(0f, sweepTargetYaw, 0f);
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, target,
-                    Constants.SCAN_SWEEP_SPEED * Time.deltaTime);
+                    Constants.SWEEP_TURN_SPEED * Time.deltaTime);
             }
 
             seekCheckTimer -= Time.deltaTime;
@@ -162,6 +167,10 @@ public class BotController : MonoBehaviour
         // reflex was yanking CTs OFF the bomb site away from their own molly
         // while the bomb ticked down (R12: exploded with 3 CTs alive)
         if (HazardBypass) return;
+
+        // Mid-duel: finish the fight. Fleeing the burn cancelled the Shooting
+        // state — the "CT sees the enemy and doesn't shoot" playtest #17 read
+        if (stateMachine.IsInCombat) return;
 
         // Static registry — FindObjectsByType every 0.5s per bot was a hot-path scan
         var effects = GrenadeEffect.ActiveEffects;
@@ -274,7 +283,11 @@ public class BotController : MonoBehaviour
     {
         // Remember the angle we start holding — the idle sweep oscillates around it
         if (newState == BotState.Peeking || newState == BotState.Idle)
+        {
             scanBaseYaw = transform.eulerAngles.y;
+            sweepTargetYaw = scanBaseYaw; // settle on the held angle first, flick later
+            sweepNextPickTime = Time.time + Random.Range(Constants.SWEEP_DWELL_MIN, Constants.SWEEP_DWELL_MAX);
+        }
         if (newState == BotState.Shooting)
         {
             isSeekingTarget = false;

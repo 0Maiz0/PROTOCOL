@@ -157,8 +157,15 @@ public class BombManager : MonoBehaviour
         foreach (var d in defenders)
         {
             if (d?.Profile == null || !d.Profile.IsAlive) continue;
-            if (Vector3.Distance(d.transform.position, bombCarrier.transform.position) < 12f)
-                return false; // clear the site first
+            if (Vector3.Distance(d.transform.position, bombCarrier.transform.position) >= 12f) continue;
+
+            // Only a CT the team KNOWS about delays the plant. A silent camper
+            // nobody spotted was invisibly freezing it forever — playtest #17
+            // R04: 5 Ts stood on the site 47s without planting against 1 hidden
+            // CT. Unknown lurker → plant starts; if he peeks it, that's the fight.
+            if (CommsManager.Instance == null ||
+                CommsManager.Instance.AnyKnownEnemyNear(TeamSide.Attacker, d.transform.position, Constants.INTEL_PREAIM_RADIUS))
+                return false; // clear the KNOWN threat first
         }
         return true;
     }

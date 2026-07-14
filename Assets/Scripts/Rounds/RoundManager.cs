@@ -292,9 +292,11 @@ public class RoundManager : MonoBehaviour
 
 		AssignBuyTypes();
 		if (grenadeManager != null)
-			grenadeManager.AllocateUtility(economy.attackerEconomy.currentBuyType, economy.defenderEconomy.currentBuyType);
+			grenadeManager.AllocateUtility(economy.attackerEconomy.currentBuyType, economy.defenderEconomy.currentBuyType,
+				economy.attackerEconomy.credits, economy.defenderEconomy.credits);
 		MatchLogger.Log($"BUY: T {economy.attackerEconomy.currentBuyType} (${economy.attackerEconomy.credits}) | " +
 			$"CT {economy.defenderEconomy.currentBuyType} (${economy.defenderEconomy.credits})" +
+			(grenadeManager != null ? $" | util T:{grenadeManager.GetNadeCount(TeamSide.Attacker)} CT:{grenadeManager.GetNadeCount(TeamSide.Defender)}" : "") +
 			(timeoutRound ? " | COACH TIMEOUT ROUND" : ""));
 
 		// ============ LIVE ============

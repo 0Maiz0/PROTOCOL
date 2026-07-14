@@ -586,10 +586,12 @@ public class RoundManager : MonoBehaviour
 
 		if (State.isMatchOver)
 		{
-			s.fontSize = 36; s.fontStyle = FontStyle.Bold; s.alignment = TextAnchor.MiddleCenter; s.normal.textColor = Color.yellow;
+			GUIStyle winStyle = new GUIStyle(GUI.skin.label)
+			{ fontSize = 36, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+			winStyle.normal.textColor = Color.yellow;
 			GUI.Box(new Rect(Screen.width / 2 - 260, Screen.height / 2 - 35, 520, 70), "");
 			GUI.Label(new Rect(Screen.width / 2 - 250, Screen.height / 2 - 30, 500, 60),
-				$"{State.matchWinner} WINS!  {State.attackerScore}-{State.defenderScore}", s);
+				$"{State.matchWinner} WINS!  {State.attackerScore}-{State.defenderScore}", winStyle);
 		}
 	}
 }

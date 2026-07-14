@@ -50,12 +50,17 @@ public class GrenadeManager : MonoBehaviour
     /// <summary>
     /// Utility comes from the LEFTOVER bank after guns, not the buy tier alone —
     /// a round-2 "full" off a pistol win means rifles with an empty util pouch.
+    /// CT exception: holding sites without nades is throwing the round, so CTs
+    /// on force+ keep a utility floor (CS meta: CT buys util before upgrades).
     /// </summary>
     public void AllocateUtility(BuyType aB, BuyType dB, int aBankLeft, int dBankLeft)
     {
         attackerBuyType = aB; defenderBuyType = dB;
         attackerNades = Mathf.Min(GetBudget(aB), aBankLeft / Constants.UTIL_BANK_PER_NADE);
-        defenderNades = Mathf.Min(GetBudget(dB), dBankLeft / Constants.UTIL_BANK_PER_NADE);
+        int ctFloor = dB == BuyType.Full ? Constants.CT_UTIL_FLOOR_FULL
+                    : dB == BuyType.Force ? Constants.CT_UTIL_FLOOR_FORCE : 0;
+        defenderNades = Mathf.Max(ctFloor,
+            Mathf.Min(GetBudget(dB), dBankLeft / Constants.UTIL_BANK_PER_NADE));
     }
 
     /// <summary>Live shared-inventory count — the HUD's LOW/OK/FULL readout.</summary>
@@ -328,12 +333,45 @@ public class GrenadeManager : MonoBehaviour
                         thrower.TryGetComponent(out EngagementSystem eyes))
                         eyes.AlertAt(choke);
                 }
-                yield break;
+                // One molly per push used to be it for the whole round — the
+                // anchor re-arms once the fire burns out (playtest #19: Ts
+                // walked the site take uncontested after the opening molly)
+                if (GetNadeCount(TeamSide.Defender) <= 0) yield break;
+                yield return new WaitForSeconds(Constants.CT_CHOKE_REARM);
+                watched = 0f;
+                continue;
             }
             watched += 0.5f;
             yield return new WaitForSeconds(0.5f);
         }
         // Nobody came through — utility saved
+    }
+
+    // ===================== SUPPORT FLASH =====================
+
+    public static GrenadeManager Instance { get; private set; }
+    private void Awake() { Instance = this; }
+
+    private float attackerSupportFlashAt = -100f, defenderSupportFlashAt = -100f;
+
+    /// <summary>
+    /// Flash before a contested re-peek: a bot answering a help call against
+    /// 2+ known enemies pops util first instead of walking in dry one by one.
+    /// Once per side per SUPPORT_FLASH_COOLDOWN.
+    /// </summary>
+    public void RequestSupportFlash(BotController bot, Vector3 fightPos)
+    {
+        if (bot?.Profile == null || !bot.Profile.IsAlive || CommsManager.Instance == null) return;
+
+        float last = bot.Side == TeamSide.Attacker ? attackerSupportFlashAt : defenderSupportFlashAt;
+        if (Time.time - last < Constants.SUPPORT_FLASH_COOLDOWN) return;
+        if (CommsManager.Instance.CountKnownEnemiesNear(bot.Side, fightPos, 14f) < Constants.SUPPORT_FLASH_ENEMIES) return;
+
+        if (bot.Side == TeamSide.Attacker) attackerSupportFlashAt = Time.time;
+        else defenderSupportFlashAt = Time.time;
+
+        CommsFeed.Post(bot.Profile.Data.nickname, "flashing in — go on the pop!", bot.Side);
+        StartCoroutine(ThrowGrenade(bot, GrenadeType.Flash, fightPos));
     }
 
     private IEnumerator CTReactiveUtility(StrategyZone zone, int budget)

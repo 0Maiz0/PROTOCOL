@@ -139,9 +139,13 @@ public class EngagementSystem : MonoBehaviour
         if (CommsManager.Instance == null) return;
         if (myBot.HoldForCommit) return; // staged for execute — hold the spot
 
-        // Priority 1: Teammate needs help nearby
+        // Priority 1: Teammate needs help nearby — flash the fight first when
+        // it's a known 2+ stack (playtest #19: CTs re-peeked a held corridor
+        // one by one, dry, and died in order)
         if (CommsManager.Instance.GetNearbyHelpRequest(myBot, out Vector3 helpPos))
         {
+            if (GrenadeManager.Instance != null)
+                GrenadeManager.Instance.RequestSupportFlash(myBot, helpPos);
             MoveToward(helpPos);
             return;
         }
@@ -691,8 +695,14 @@ public class EngagementSystem : MonoBehaviour
         LineRenderer lr = obj.AddComponent<LineRenderer>();
         lr.startWidth = 0.04f; lr.endWidth = 0.015f; lr.positionCount = 2;
         lr.SetPosition(0, start); lr.SetPosition(1, end);
-        lr.startColor = isHit ? Color.yellow : new Color(1, 1, 0.5f, 0.3f);
-        lr.endColor = isHit ? new Color(1, 0.5f, 0, 0.6f) : new Color(1, 0.8f, 0.3f, 0.1f);
+        // Tracer color = SHOOTER's side (T warm orange, CT cyan) so the viewer
+        // reads who is shooting whom; misses stay faint
+        Color sideCol = myBot.Side == TeamSide.Attacker
+            ? new Color(1f, 0.45f, 0.15f)
+            : new Color(0.25f, 0.75f, 1f);
+        lr.startColor = isHit ? sideCol : new Color(sideCol.r, sideCol.g, sideCol.b, 0.3f);
+        lr.endColor = isHit ? new Color(sideCol.r, sideCol.g, sideCol.b, 0.6f)
+                            : new Color(sideCol.r, sideCol.g, sideCol.b, 0.1f);
         // Shared material — a new Material per shot leaked (colors are vertex-based anyway)
         if (tracerMaterial == null) tracerMaterial = new Material(Shader.Find("Sprites/Default"));
         lr.material = tracerMaterial;

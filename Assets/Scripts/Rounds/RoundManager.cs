@@ -527,7 +527,7 @@ public class RoundManager : MonoBehaviour
 		string playerName = CareerManager.Instance != null ? CareerManager.TeamDisplayName : "NAVI";
 		string enemyName = CareerManager.Instance != null ? CareerManager.Instance.nextOpponentName : "FAZE";
 		string tName = (playerIsT ? playerName : enemyName) + (playerIsT ? "  (YOU)" : "");
-		string ctName = (playerIsT ? "(YOU)  " : "") + (playerIsT ? enemyName : playerName);
+		string ctName = (playerIsT ? "" : "(YOU)  ") + (playerIsT ? enemyName : playerName);
 
 		var tStyle = new GUIStyle(GUI.skin.label) { fontSize = 17, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
 		tStyle.normal.textColor = new Color(1f, 0.45f, 0.38f);

@@ -153,7 +153,7 @@ public class MatchHUD : MonoBehaviour
         killfeed.RemoveAll(k => Time.time - k.timeAdded > killfeedDuration);
 
         float startX = Screen.width - 340;
-        float startY = 110;
+        float startY = 175; // below the CT comms panel flanking the score bar
         float entryH = 28f;
 
         for (int i = 0; i < killfeed.Count; i++)

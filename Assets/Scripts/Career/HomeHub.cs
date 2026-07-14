@@ -314,12 +314,12 @@ public class HomeHub : MonoBehaviour
             ry += 27;
 
             GUI.Label(new Rect(0, ry, 800, 22),
-                $"AIM {p.aim}   REF {p.reflexes}   GS {p.gameSense}    |    CLU {p.clutch}   CON {p.consistency}   COM {p.communication}", text);
+                $"AIM {p.aim}   REF {p.reflexes}   GS {p.gameSense}   CLU {p.clutch}   CON {p.consistency}", text);
             ry += 23;
 
             string prefNote = p.assignedRole != p.preferredRole ? $"      (prefers {p.preferredRole})" : "";
             GUI.Label(new Rect(0, ry, 800, 22),
-                $"EGO {p.ego}   WORK {p.workEthic}   TOX {p.toxicity}   LEAD {p.leadership}      ${p.salaryPerMonth:N0}/mo{prefNote}", dim);
+                $"EGO {p.ego}   WORK {p.workEthic}   TOX {p.toxicity}   LEAD {p.leadership}   COM {p.communication}      ${p.salaryPerMonth:N0}/mo{prefNote}", dim);
             ry += 25;
 
             int cur = (int)p.assignedRole;
@@ -388,7 +388,7 @@ public class HomeHub : MonoBehaviour
         }
 
         GUI.Label(new Rect(x, y, w, 24), "FPL LEADERBOARD — FREE AGENTS", h2); y += 26;
-        GUI.Label(new Rect(x, y, w, 22), "Hidden stats (CLU/CON/COM) and personality reveal after signing.", dim); y += 24;
+        GUI.Label(new Rect(x, y, w, 22), "Skill stats are public. Personality (EGO / WORK / TOX / LEAD / COM) reveals after signing.", dim); y += 24;
         if (cm.RosterFull)
         {
             GUI.Label(new Rect(x, y, w, 22), "Roster full — release a player before signing someone new.", Tint(text, WarnColor));
@@ -401,7 +401,7 @@ public class HomeHub : MonoBehaviour
             sortedPool.Sort((a, b) => b.Overall.CompareTo(a.Overall));
         }
 
-        DrawScoutRow(x, y, "#", "NICKNAME", "AGE", "NATION", "ROLE", "AIM", "REF", "GS", "OVR", "ASKING", dim);
+        DrawScoutRow(x, y, "#", "NICKNAME", "AGE", "NATION", "ROLE", "AIM", "REF", "GS", "CLU", "CON", "OVR", "ASKING", dim);
         y += 26;
 
         float rowH = 26f;
@@ -414,6 +414,7 @@ public class HomeHub : MonoBehaviour
             float ry = i * rowH;
             DrawScoutRow(0, ry, (i + 1).ToString(), p.nickname, p.age.ToString(), p.nationality,
                 p.preferredRole.ToString(), p.aim.ToString(), p.reflexes.ToString(), p.gameSense.ToString(),
+                p.clutch.ToString(), p.consistency.ToString(),
                 p.Overall.ToString(), $"${p.salaryPerMonth:N0}");
 
             GUI.enabled = !cm.RosterFull;
@@ -430,19 +431,22 @@ public class HomeHub : MonoBehaviour
     }
 
     private void DrawScoutRow(float x, float y, string rank, string nick, string age, string nation,
-        string role, string aim, string reflexes, string gs, string ovr, string asking, GUIStyle style = null)
+        string role, string aim, string reflexes, string gs, string clu, string con,
+        string ovr, string asking, GUIStyle style = null)
     {
         GUIStyle s = style ?? text;
-        GUI.Label(new Rect(x, y, 32, 22), rank, s);
-        GUI.Label(new Rect(x + 36, y, 140, 22), nick, s);
-        GUI.Label(new Rect(x + 180, y, 36, 22), age, s);
-        GUI.Label(new Rect(x + 220, y, 100, 22), nation, s);
-        GUI.Label(new Rect(x + 324, y, 80, 22), role, s);
-        GUI.Label(new Rect(x + 408, y, 44, 22), aim, s);
-        GUI.Label(new Rect(x + 452, y, 44, 22), reflexes, s);
-        GUI.Label(new Rect(x + 496, y, 44, 22), gs, s);
-        GUI.Label(new Rect(x + 540, y, 48, 22), ovr, s);
-        GUI.Label(new Rect(x + 592, y, 110, 22), asking, s);
+        GUI.Label(new Rect(x, y, 28, 22), rank, s);
+        GUI.Label(new Rect(x + 32, y, 120, 22), nick, s);
+        GUI.Label(new Rect(x + 156, y, 32, 22), age, s);
+        GUI.Label(new Rect(x + 192, y, 74, 22), nation, s);
+        GUI.Label(new Rect(x + 270, y, 64, 22), role, s);
+        GUI.Label(new Rect(x + 338, y, 38, 22), aim, s);
+        GUI.Label(new Rect(x + 378, y, 38, 22), reflexes, s);
+        GUI.Label(new Rect(x + 418, y, 38, 22), gs, s);
+        GUI.Label(new Rect(x + 458, y, 38, 22), clu, s);
+        GUI.Label(new Rect(x + 498, y, 38, 22), con, s);
+        GUI.Label(new Rect(x + 540, y, 44, 22), ovr, s);
+        GUI.Label(new Rect(x + 588, y, 100, 22), asking, s);
     }
 
     // ===================== NEGOTIATION =====================
@@ -452,7 +456,7 @@ public class HomeHub : MonoBehaviour
         var p = negotiating;
         GUI.Label(new Rect(x, y, w, 26), $"CONTRACT OFFER — {p.nickname}", h2); y += 30;
         GUI.Label(new Rect(x, y, w, 22),
-            $"{p.playerName}, {p.age}, {p.nationality}   [{p.preferredRole}]   AIM {p.aim} / REF {p.reflexes} / GS {p.gameSense}   (OVR {p.Overall})", text); y += 24;
+            $"{p.playerName}, {p.age}, {p.nationality}   [{p.preferredRole}]   AIM {p.aim} / REF {p.reflexes} / GS {p.gameSense} / CLU {p.clutch} / CON {p.consistency}   (OVR {p.Overall})", text); y += 24;
         GUI.Label(new Rect(x, y, w, 22), $"Asking: ${p.salaryPerMonth:N0}/mo", text); y += 34;
 
         if (signedDeal)

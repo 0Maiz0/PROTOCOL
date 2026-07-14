@@ -131,6 +131,14 @@ public static class Constants
     public const float CLOSE_RANGE_NO_COVER = 9f;    // point-blank: no cover cycling, stand and fight
     public const float EVADE_COOLDOWN = 1.5f;        // one dodge, then turn and face the shooter
 
+    // Playtest #19: CT utility is the site hold — CS meta buys it before rifles.
+    // The bank cap starved losing CTs to 1-2 nades while T ran 8 (R03-R06).
+    public const int CT_UTIL_FLOOR_FULL = 3;
+    public const int CT_UTIL_FLOOR_FORCE = 2;
+    public const float CT_CHOKE_REARM = 12f;         // denial molly re-arms after burning out
+    public const float SUPPORT_FLASH_COOLDOWN = 10f; // per side — flash before a contested re-peek
+    public const float SUPPORT_FLASH_ENEMIES = 2;    // known enemies at the fight to justify it
+
     // Utility timing (playtest #2)
     public const float UTIL_THROW_RANGE = 40f;    // rush smoke must LAND before contact (log: smoke 20.0s, first duel 21.5s)
     public const float UTIL_JIT_TIMEOUT = 20f;    // give up waiting and throw anyway

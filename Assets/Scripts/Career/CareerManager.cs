@@ -91,8 +91,9 @@ public class CareerManager : MonoBehaviour
         teamName = ""; // fresh org — HomeHub asks for the name
         budget = Constants.STARTING_BUDGET;
         currentWeek = 1;
-        roster = PlayerGenerator.GenerateStartingRoster();
-        foreach (var p in roster) p.isSigned = true;
+        // You BUILD the team — the career starts with an empty roster and a
+        // scouting pool. Sign your own five before the first qualifier.
+        roster = new List<CareerPlayer>();
         scoutingPool = PlayerGenerator.GeneratePool(Constants.SCOUTING_POOL_SIZE);
         matchHistory = new List<MatchRecord>();
         bracket = null;
@@ -142,9 +143,11 @@ public class CareerManager : MonoBehaviour
             PlayerGenerator.RegisterExistingNicknames(bracket.teamC?.players);
         }
 
-        if (roster.Count == 0)
+        // Empty roster is now a VALID state (careers start rosterless) —
+        // only a save with no players anywhere is treated as corrupt
+        if (roster.Count == 0 && scoutingPool.Count == 0)
         {
-            Debug.LogWarning("CAREER: save had an empty roster — starting a new career");
+            Debug.LogWarning("CAREER: save had no players at all — starting a new career");
             InitNewCareer();
             return;
         }

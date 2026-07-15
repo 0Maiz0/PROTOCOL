@@ -87,14 +87,15 @@ public class PlayerHUD : MonoBehaviour
         GUI.Label(new Rect(startX, startY - 18, pw, 16), label, header);
 
         // Team utility level sits right above its own panel stack
+        // (CS scale: full-buy team pouch is ~16 nades, so 8+ reads as FULL)
         if (grenadeManager != null)
         {
             int nades = grenadeManager.GetNadeCount(side);
-            string utilLabel = nades <= 0 ? "NONE" : nades == 1 ? "LOW" : nades <= 3 ? "OK" : "FULL";
+            string utilLabel = nades <= 0 ? "NONE" : nades <= 3 ? "LOW" : nades <= 7 ? "OK" : "FULL";
             GUIStyle util = new GUIStyle(header);
             util.normal.textColor = nades <= 0 ? new Color(1f, 0.35f, 0.3f)
-                : nades == 1 ? new Color(1f, 0.65f, 0.25f)
-                : nades <= 3 ? new Color(1f, 0.9f, 0.4f)
+                : nades <= 3 ? new Color(1f, 0.65f, 0.25f)
+                : nades <= 7 ? new Color(1f, 0.9f, 0.4f)
                 : new Color(0.5f, 1f, 0.5f);
             GUI.Label(new Rect(startX, startY - 36, pw, 16), $"UTIL: {utilLabel} ({nades})", util);
         }

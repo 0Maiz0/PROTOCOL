@@ -123,8 +123,9 @@ public static class Constants
     public const float PANIC_SMOKE_SUPPORT_RANGE = 12f; // a teammate this close = no panic
 
     // Utility is bought with leftover money, not granted by buy tier alone —
-    // "5 AKs round 2" must mean an empty util pouch (playtest #17)
-    public const int UTIL_BANK_PER_NADE = 1500;   // leftover team bank per grenade
+    // "5 AKs round 2" must mean a THIN util pouch (playtest #17). $500/nade at
+    // CS scale; the team floor still guarantees a few flashes on any budget.
+    public const int UTIL_BANK_PER_NADE = 500;
 
     // Playtest #18: guns beat grenades at contact + evade sanity
     public const float UTIL_ABORT_ENEMY_RANGE = 12f; // known enemy this close → shoot, don't nade
@@ -145,10 +146,15 @@ public static class Constants
     public const float UTIL_DOCTRINE_AGGRO = 55f; // protocols.aggression at/above = flash-first
     public const int CT_ANCHOR_POINT_CAP = 4;     // max simultaneous anchor watches
 
-    // Playtest #19: CT utility is the site hold — CS meta buys it before rifles.
-    // The bank cap starved losing CTs to 1-2 nades while T ran 8 (R03-R06).
-    public const int CT_UTIL_FLOOR_FULL = 3;
-    public const int CT_UTIL_FLOOR_FORCE = 2;
+    // Utility inventory at CS scale (playtest #21: "1 nade on the pistol round"
+    // was an order of magnitude off — every CS player carries up to 4 nades,
+    // a full-buy team ~16-20, and even pistol rounds run a few flashes).
+    // Budgets live HERE, not in scene-serialized fields (stale-value bug class).
+    public const int UTIL_BUDGET_FULL = 16;
+    public const int UTIL_BUDGET_FORCE = 10;
+    public const int UTIL_BUDGET_HALF = 7;
+    public const int UTIL_BUDGET_ECO = 4;
+    public const int UTIL_TEAM_FLOOR = 4;            // below this basically never happens in CS
     public const float CT_CHOKE_REARM = 12f;         // denial molly re-arms after burning out
     public const float SUPPORT_FLASH_COOLDOWN = 10f; // per side — flash before a contested re-peek
     public const float SUPPORT_FLASH_ENEMIES = 2;    // known enemies at the fight to justify it

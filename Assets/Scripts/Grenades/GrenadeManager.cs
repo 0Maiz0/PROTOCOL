@@ -26,11 +26,7 @@ public class GrenadeManager : MonoBehaviour
     [SerializeField] private float throwFlightTime = 1.2f;     // Seconds in air
     [SerializeField] private float utilitySpacing = 0.6f;
 
-    [Header("Budget")]
-    [SerializeField] private int fullBuyNades = 4;
-    [SerializeField] private int forceBuyNades = 2;
-    [SerializeField] private int halfBuyNades = 1;
-    [SerializeField] private int ecoBuyNades = 0;
+    // Nade budgets live in Constants — scene-serialized fields kept stale values
 
     private List<GameObject> activeGrenades = new List<GameObject>();
     private BuyType attackerBuyType = BuyType.Full;
@@ -48,18 +44,17 @@ public class GrenadeManager : MonoBehaviour
     public void SetBotReferences(List<BotController> a, List<BotController> d) { attackerBots = a; defenderBots = d; }
 
     /// <summary>
-    /// Utility comes from the LEFTOVER bank after guns, not the buy tier alone —
-    /// a round-2 "full" off a pistol win means rifles with an empty util pouch.
-    /// CT exception: holding sites without nades is throwing the round, so CTs
-    /// on force+ keep a utility floor (CS meta: CT buys util before upgrades).
+    /// Utility comes from the LEFTOVER bank after guns, capped by the buy tier —
+    /// a round-2 "full" off a pistol win means rifles with a THIN util pouch.
+    /// The team floor guarantees a few nades on ANY budget: in CS even pistol
+    /// rounds run flashes — a good pop-flash wins the site rush.
     /// </summary>
     public void AllocateUtility(BuyType aB, BuyType dB, int aBankLeft, int dBankLeft)
     {
         attackerBuyType = aB; defenderBuyType = dB;
-        attackerNades = Mathf.Min(GetBudget(aB), aBankLeft / Constants.UTIL_BANK_PER_NADE);
-        int ctFloor = dB == BuyType.Full ? Constants.CT_UTIL_FLOOR_FULL
-                    : dB == BuyType.Force ? Constants.CT_UTIL_FLOOR_FORCE : 0;
-        defenderNades = Mathf.Max(ctFloor,
+        attackerNades = Mathf.Max(Constants.UTIL_TEAM_FLOOR,
+            Mathf.Min(GetBudget(aB), aBankLeft / Constants.UTIL_BANK_PER_NADE));
+        defenderNades = Mathf.Max(Constants.UTIL_TEAM_FLOOR,
             Mathf.Min(GetBudget(dB), dBankLeft / Constants.UTIL_BANK_PER_NADE));
     }
 
@@ -335,9 +330,9 @@ public class GrenadeManager : MonoBehaviour
         void AddEntry(int i) { if (i < entries.Count) plan.Add((GrenadeType.Flash, entries[i], Role.Entry)); }
 
         if (attackerAggression >= Constants.UTIL_DOCTRINE_AGGRO)
-        { AddEntry(0); AddEntry(1); AddCut(0); AddHold(0); AddCut(1); }
+        { AddEntry(0); AddEntry(1); AddCut(0); AddHold(0); AddEntry(2); AddCut(1); }
         else
-        { AddCut(0); AddHold(0); AddEntry(0); AddEntry(1); AddCut(1); }
+        { AddCut(0); AddHold(0); AddEntry(0); AddEntry(1); AddCut(1); AddHold(1); }
 
         // Throwers by PROXIMITY (role preferred) — no cross-map mortars
         foreach (var step in plan)
@@ -720,8 +715,8 @@ public class GrenadeManager : MonoBehaviour
 
     private int GetBudget(BuyType b) => b switch
     {
-        BuyType.Full => fullBuyNades, BuyType.Force => forceBuyNades,
-        BuyType.Half => halfBuyNades, _ => ecoBuyNades
+        BuyType.Full => Constants.UTIL_BUDGET_FULL, BuyType.Force => Constants.UTIL_BUDGET_FORCE,
+        BuyType.Half => Constants.UTIL_BUDGET_HALF, _ => Constants.UTIL_BUDGET_ECO
     };
 
     private Vector3 GetWP(string name)

@@ -115,6 +115,11 @@ public class IGLBrain : MonoBehaviour
         float lead = Leadership;
         bool enemyBroke = enemyBuy == BuyType.Eco || enemyBuy == BuyType.Half;
 
+        // Utility doctrine follows the coach's aggression: flash-first entries
+        // vs smoke-first map cuts when the nade pouch is thin
+        if (grenadeManager != null)
+            grenadeManager.SetAggression(side, protocols != null ? protocols.aggression : 50f);
+
         float total = 0f;
         float[] weights = new float[pool.Length];
         for (int i = 0; i < pool.Length; i++)

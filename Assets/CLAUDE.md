@@ -71,6 +71,7 @@ Match engine is built and playable. Two coaching phases work (opening call + mid
 | `CommsFeed.cs` | On-screen team voice feed (player team only) — tuning window into bot decisions |
 | `IGLBrain.cs` | Player-team IGL CALLS the game: strategy, commit timing, rotations (Leadership-scaled) |
 | `TeamProtocols.cs` | Coach's pre-match fingerprint: aggression, economy discipline, lurker (career-saved) |
+| `UtilityPoint.cs` | Scene-authored nade targets (Entry/Cut/Hold/Anchor per zone) — GrenadeManager plans from these, falls back to legacy WPs |
 
 ## Map: Nexus (Template Map)
 

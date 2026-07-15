@@ -66,6 +66,33 @@ public class GrenadeManager : MonoBehaviour
     /// <summary>Live shared-inventory count — the HUD's LOW/OK/FULL readout.</summary>
     public int GetNadeCount(TeamSide side) => side == TeamSide.Attacker ? attackerNades : defenderNades;
 
+    // ===================== UTILITY DOCTRINE & POINTS =====================
+
+    // Protocols.aggression per side — decides what scarce utility buys
+    private float attackerAggression = 50f, defenderAggression = 50f;
+
+    /// <summary>IGL reports the team's doctrine each round (from TeamProtocols).</summary>
+    public void SetAggression(TeamSide side, float aggression)
+    {
+        if (side == TeamSide.Attacker) attackerAggression = aggression;
+        else defenderAggression = aggression;
+    }
+
+    /// <summary>Scene-authored points for a zone+purpose, best priority first.</summary>
+    private static List<UtilityPoint> PointsFor(StrategyZone zone, UtilityPurpose purpose)
+    {
+        var result = new List<UtilityPoint>();
+        foreach (var p in UtilityPoint.All)
+            if (p != null && p.purpose == purpose && ZoneMatches(p.zone, zone))
+                result.Add(p);
+        result.Sort((a, b) => b.priority.CompareTo(a.priority));
+        return result;
+    }
+
+    // Split hits the A side of the map — A points serve it
+    private static bool ZoneMatches(StrategyZone pointZone, StrategyZone strat) =>
+        pointZone == strat || (strat == StrategyZone.Split && pointZone == StrategyZone.NodeA);
+
     public void ResetForRound()
     {
         StopAllCoroutines(); ClearAllGrenades();
@@ -223,37 +250,53 @@ public class GrenadeManager : MonoBehaviour
 
     private IEnumerator RushUtility(StrategyZone zone, int budget)
     {
-        string crossingSmoke = zone == StrategyZone.NodeA ? "WP_Garden" : "WP_Bazaar";
-        string entryFlash = zone == StrategyZone.NodeA ? "WP_NodeA" : "WP_NodeB";
-        Vector3 smokeTarget = GetWP(crossingSmoke);
+        // Scene-authored points first, legacy waypoints as fallback
+        var cutPts = PointsFor(zone, UtilityPurpose.Cut);
+        var entryPts = PointsFor(zone, UtilityPurpose.Entry);
+        Vector3 smokeTarget = cutPts.Count > 0 ? cutPts[0].transform.position
+            : GetWP(zone == StrategyZone.NodeA ? "WP_Garden" : "WP_Bazaar");
+        Vector3 flashTarget = entryPts.Count > 0 ? entryPts[0].transform.position
+            : GetWP(zone == StrategyZone.NodeA ? "WP_NodeA" : "WP_NodeB");
+
+        // Doctrine: aggressive rushes flash the entry first — a pistol-round
+        // single nade becomes the teammate's entry pop, not a fading smoke
+        bool aggressive = attackerAggression >= Constants.UTIL_DOCTRINE_AGGRO;
+        Vector3 first = aggressive ? flashTarget : smokeTarget;
 
         // Just-in-time: wait until someone (Support preferred) is actually near
-        // the cross — a smoke thrown from spawn fades before anyone uses it
+        // the target — a nade thrown from spawn is wasted before anyone uses it
         BotController thrower = null;
         float waited = 0f;
         while (waited < Constants.UTIL_JIT_TIMEOUT)
         {
-            thrower = PickThrower(TeamSide.Attacker, Role.Support, smokeTarget);
+            thrower = PickThrower(TeamSide.Attacker, Role.Support, first);
             if (thrower != null &&
-                Vector3.Distance(thrower.transform.position, smokeTarget) < Constants.UTIL_THROW_RANGE)
+                Vector3.Distance(thrower.transform.position, first) < Constants.UTIL_THROW_RANGE)
                 break;
             waited += 0.5f;
             yield return new WaitForSeconds(0.5f);
         }
+        if (thrower == null) yield break;
 
-        if (budget >= 1 && thrower != null)
+        if (aggressive)
+        {
+            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Flash, flashTarget));
+            yield return new WaitForSeconds(utilitySpacing);
+            if (GetNadeCount(TeamSide.Attacker) > 0)
+                yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Smoke, smokeTarget));
+        }
+        else
         {
             yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Smoke, smokeTarget));
             yield return new WaitForSeconds(utilitySpacing);
-        }
-        if (budget >= 2 && thrower != null)
-        {
-            yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Flash, GetWP(entryFlash)));
+            if (GetNadeCount(TeamSide.Attacker) > 0)
+                yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Flash, flashTarget));
         }
     }
 
     private IEnumerator CommitUtility(StrategyZone zone, int budget)
     {
+        // Legacy fallback targets — used while the scene has no UtilityPoints
         string site, rotCut, holdSpot;
         if (zone == StrategyZone.NodeA || zone == StrategyZone.Split)
         { site = "WP_NodeA"; rotCut = "WP_Garden"; holdSpot = "WP_Overlook"; }
@@ -261,61 +304,79 @@ public class GrenadeManager : MonoBehaviour
         { site = "WP_NodeB"; rotCut = "WP_Bazaar"; holdSpot = "WP_NodeB"; }
         else
         { site = "WP_Axis"; rotCut = "WP_Axis"; holdSpot = "WP_Axis"; }
+        Vector3 sitePos = GetWP(site);
 
-        // Targets first, then throwers by PROXIMITY (role preferred) —
-        // no more cross-map mortars from the B player onto A
-        Vector3 cutTarget = GetWP(rotCut);
-        Vector3 mollyTarget = GetWP(holdSpot);
+        // Target lists: scene-authored points first (priority order), legacy WPs as fallback
+        var cuts = new List<Vector3>();
+        foreach (var p in PointsFor(zone, UtilityPurpose.Cut)) cuts.Add(p.transform.position);
+        if (cuts.Count == 0) cuts.Add(GetWP(rotCut));
+
+        var holds = new List<Vector3>();
+        foreach (var p in PointsFor(zone, UtilityPurpose.Hold)) holds.Add(p.transform.position);
+        if (holds.Count == 0) holds.Add(GetWP(holdSpot));
+
+        var entries = new List<Vector3>();
+        foreach (var p in PointsFor(zone, UtilityPurpose.Entry)) entries.Add(p.transform.position);
+        if (entries.Count == 0) entries.Add(sitePos);
+
+        // Comms override: a KNOWN defender near the site eats the molly and the first flash
         if (CommsManager.Instance != null &&
-            CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, GetWP(site), 14f, out Vector3 camper))
-            mollyTarget = camper;
-        Vector3 siteFlash = GetWP(site);
-        if (CommsManager.Instance != null &&
-            CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, GetWP(site), 14f, out Vector3 knownCT))
-            siteFlash = knownCT;
+            CommsManager.Instance.TryGetKnownEnemyNear(TeamSide.Attacker, sitePos, 14f, out Vector3 knownCT))
+        {
+            holds.Insert(0, knownCT);
+            entries.Insert(0, knownCT);
+        }
 
-        BotController smoker = PickThrower(TeamSide.Attacker, Role.Support, cutTarget);
-        BotController mollyer = PickThrower(TeamSide.Attacker, Role.IGL, mollyTarget);
-        BotController flasher = PickThrower(TeamSide.Attacker, Role.Entry, siteFlash);
+        // The IGL's doctrine decides what scarce utility buys: aggressive teams
+        // flash the entry first, patient teams cut the map first
+        var plan = new List<(GrenadeType type, Vector3 target, Role thrower)>();
+        void AddCut(int i) { if (i < cuts.Count) plan.Add((GrenadeType.Smoke, cuts[i], Role.Support)); }
+        void AddHold(int i) { if (i < holds.Count) plan.Add((GrenadeType.Molotov, holds[i], Role.IGL)); }
+        void AddEntry(int i) { if (i < entries.Count) plan.Add((GrenadeType.Flash, entries[i], Role.Entry)); }
 
-        // 1. Smoke rotation cut
-        if (budget >= 1 && smoker != null)
+        if (attackerAggression >= Constants.UTIL_DOCTRINE_AGGRO)
+        { AddEntry(0); AddEntry(1); AddCut(0); AddHold(0); AddCut(1); }
+        else
+        { AddCut(0); AddHold(0); AddEntry(0); AddEntry(1); AddCut(1); }
+
+        // Throwers by PROXIMITY (role preferred) — no cross-map mortars
+        foreach (var step in plan)
         {
-            yield return StartCoroutine(ThrowGrenade(smoker, GrenadeType.Smoke, cutTarget));
-            yield return new WaitForSeconds(utilitySpacing);
-        }
-        // 2. Molly the hold spot — or the KNOWN camper if comms has one near the site
-        if (budget >= 2 && mollyer != null)
-        {
-            yield return StartCoroutine(ThrowGrenade(mollyer, GrenadeType.Molotov, mollyTarget));
-            yield return new WaitForSeconds(utilitySpacing);
-        }
-        // 3. Flash site — at the KNOWN holder if comms has one
-        if (budget >= 3 && flasher != null)
-        {
-            yield return StartCoroutine(ThrowGrenade(flasher, GrenadeType.Flash, siteFlash));
-            yield return new WaitForSeconds(0.3f);
-        }
-        // 4. Pop flash
-        if (budget >= 4 && flasher != null)
-        {
-            yield return StartCoroutine(ThrowGrenade(flasher, GrenadeType.Flash, siteFlash));
+            if (GetNadeCount(TeamSide.Attacker) <= 0) yield break;
+            BotController thrower = PickThrower(TeamSide.Attacker, step.thrower, step.target);
+            if (thrower == null) continue;
+            yield return StartCoroutine(ThrowGrenade(thrower, step.type, step.target));
+            yield return new WaitForSeconds(step.type == GrenadeType.Flash ? 0.3f : utilitySpacing);
         }
     }
 
     private IEnumerator CTOpeningUtility(int budget)
     {
         // Reactive denial — a molly on a timer just burns out before anyone arrives.
-        // Each choke is watched; the molly lands when enemies are ACTUALLY coming
+        // Each spot is watched; the nade lands when enemies are ACTUALLY coming
         // through it (footstep/contact reports feed CommsManager).
-        if (budget >= 1) StartCoroutine(ChokeDenial("WP_ACorr"));
-        if (budget >= 2) StartCoroutine(ChokeDenial("WP_BAlley"));
+        // Scene-authored Anchor points first — as many as the user placed (capped);
+        // legacy two chokes as fallback.
+        var anchors = new List<UtilityPoint>();
+        foreach (var p in UtilityPoint.All)
+            if (p != null && p.purpose == UtilityPurpose.Anchor) anchors.Add(p);
+        anchors.Sort((a, b) => b.priority.CompareTo(a.priority));
+
+        if (anchors.Count > 0)
+        {
+            for (int i = 0; i < anchors.Count && i < Constants.CT_ANCHOR_POINT_CAP; i++)
+                StartCoroutine(ChokeDenialAt(anchors[i].transform.position, anchors[i].type));
+        }
+        else
+        {
+            if (budget >= 1) StartCoroutine(ChokeDenialAt(GetWP("WP_ACorr"), GrenadeType.Molotov));
+            if (budget >= 2) StartCoroutine(ChokeDenialAt(GetWP("WP_BAlley"), GrenadeType.Molotov));
+        }
         yield break;
     }
 
-    private IEnumerator ChokeDenial(string chokeName)
+    private IEnumerator ChokeDenialAt(Vector3 choke, GrenadeType type)
     {
-        Vector3 choke = GetWP(chokeName);
         if (choke == Vector3.zero) yield break;
 
         float watched = 0f;
@@ -327,9 +388,9 @@ public class GrenadeManager : MonoBehaviour
                 BotController thrower = FindThrowerNear(TeamSide.Defender, choke);
                 if (thrower != null)
                 {
-                    Debug.Log($"CT DENIAL: enemies heard at {chokeName} — molly incoming!");
-                    yield return StartCoroutine(ThrowGrenade(thrower, GrenadeType.Molotov, choke));
-                    // Molly down — pre-aim the choke and punish whoever pushes through
+                    Debug.Log($"CT DENIAL: enemies heard at anchor point — {type} incoming!");
+                    yield return StartCoroutine(ThrowGrenade(thrower, type, choke));
+                    // Nade down — pre-aim the spot and punish whoever pushes through
                     if (thrower.Profile != null && thrower.Profile.IsAlive &&
                         thrower.TryGetComponent(out EngagementSystem eyes))
                         eyes.AlertAt(choke);

@@ -14,3 +14,4 @@ public enum StrategyType { Rush, Execute, Fake, Control, Default }
 public enum MidRoundCall { Commit, Rotate, SlowPlay, Save, HoldPositions, RotateA, RotateB, AggressivePush, CTSave }
 public enum OfferResult { Accepted, Countered, Rejected }
 public enum BracketStage { Semifinal, Final, Done }
+public enum UtilityPurpose { Entry, Cut, Hold, Anchor }

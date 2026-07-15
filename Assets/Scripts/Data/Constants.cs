@@ -139,6 +139,12 @@ public static class Constants
     public const float POINTBLANK_RANGE = 5f;
     public const float POINTBLANK_HITCHANCE_FLOOR = 0.4f;
 
+    // Utility points (playtest #20 follow-up): scene-authored throw targets +
+    // IGL doctrine — aggressive teams spend scarce nades on entry flashes,
+    // patient teams cut the map with smokes first
+    public const float UTIL_DOCTRINE_AGGRO = 55f; // protocols.aggression at/above = flash-first
+    public const int CT_ANCHOR_POINT_CAP = 4;     // max simultaneous anchor watches
+
     // Playtest #19: CT utility is the site hold — CS meta buys it before rifles.
     // The bank cap starved losing CTs to 1-2 nades while T ran 8 (R03-R06).
     public const int CT_UTIL_FLOOR_FULL = 3;

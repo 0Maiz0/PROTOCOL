@@ -105,20 +105,29 @@ public class MainMenu : MonoBehaviour
             fontStyle = FontStyle.Bold
         };
         sub.normal.textColor = new Color(0.8f, 0.85f, 0.9f, Ease((t - 0.8f) / 0.8f));
-        GUI.Label(new Rect(0, sh * 0.35f, sw, 30), "ESPORTS TEAM SIMULATOR — YOU BUILD IT, THEY PLAY IT", sub);
+        GUI.Label(new Rect(0, sh * 0.35f, sw, 30),
+            Loc.L("ESPORTS TEAM SIMULATOR — YOU BUILD IT, THEY PLAY IT",
+                  "СИМУЛЯТОР КИБЕРСПОРТИВНОЙ КОМАНДЫ — ТЫ СОБИРАЕШЬ, ОНИ ИГРАЮТ"), sub);
+
+        // Language toggle — top right, always visible
+        GUIStyle langBtn = new GUIStyle(GUI.skin.button) { fontSize = 14, fontStyle = FontStyle.Bold };
+        if (GUI.Button(new Rect(sw - 92, 16, 76, 32), Loc.Russian ? "EN" : "РУС", langBtn))
+            Loc.Toggle();
 
         // Buttons stagger in from the left
         bool hasSave = SaveSystem.SaveExists();
         float bw = 340f, bh = 54f, bx = sw / 2f - bw / 2f, by = sh * 0.48f;
         int slot = 0;
 
-        if (hasSave && MenuButton("CONTINUE CAREER", bx, by + slot * 70f, bw, bh, 1.2f + slot * 0.15f, Accent))
+        if (hasSave && MenuButton(Loc.L("CONTINUE CAREER", "ПРОДОЛЖИТЬ КАРЬЕРУ"), bx, by + slot * 70f, bw, bh, 1.2f + slot * 0.15f, Accent))
         {
             SceneManager.LoadScene(Constants.HOME_SCENE_NAME);
         }
         if (hasSave) slot++;
 
-        string newLabel = confirmNewCareer ? "CONFIRM — WIPE OLD SAVE" : "NEW CAREER";
+        string newLabel = confirmNewCareer
+            ? Loc.L("CONFIRM — WIPE OLD SAVE", "ТОЧНО? — СТЕРЕТЬ СТАРЫЙ СЕЙВ")
+            : Loc.L("NEW CAREER", "НОВАЯ КАРЬЕРА");
         if (MenuButton(newLabel, bx, by + slot * 70f, bw, bh, 1.2f + slot * 0.15f,
                 confirmNewCareer ? AccentWarm : Accent))
         {
@@ -131,7 +140,7 @@ public class MainMenu : MonoBehaviour
         }
         slot++;
 
-        if (MenuButton("QUIT", bx, by + slot * 70f, bw, bh, 1.2f + slot * 0.15f, new Color(0.7f, 0.7f, 0.75f)))
+        if (MenuButton(Loc.L("QUIT", "ВЫХОД"), bx, by + slot * 70f, bw, bh, 1.2f + slot * 0.15f, new Color(0.7f, 0.7f, 0.75f)))
         {
             Application.Quit();
 #if UNITY_EDITOR
@@ -142,7 +151,9 @@ public class MainMenu : MonoBehaviour
         // Footer
         GUIStyle foot = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.MiddleCenter };
         foot.normal.textColor = new Color(1f, 1f, 1f, 0.25f * Mathf.Clamp01(t - 2f));
-        GUI.Label(new Rect(0, sh - 34, sw, 20), "3 tactical timeouts. The rest is on the team you built.", foot);
+        GUI.Label(new Rect(0, sh - 34, sw, 20),
+            Loc.L("3 tactical timeouts. The rest is on the team you built.",
+                  "3 тактических таймаута. Остальное — на команде, которую ты собрал."), foot);
     }
 
     private bool MenuButton(string label, float x, float y, float w, float h, float delay, Color accent)

@@ -40,3 +40,11 @@ crashlytics-build.properties
 
 # ===== Match telemetry (read by Claude, not versioned) =====
 [Mm]atch[Ll]ogs/
+
+# ===== Claude Code (local, per-machine) =====
+.claude/settings.local.json
+
+# ===== Editor leftovers =====
+UpgradeLog*.htm
+[Aa]ssets/_Recovery/
+[Aa]ssets/_Recovery.meta
